@@ -4,7 +4,7 @@
 # author:   dawid.koszewski@nokia.com
 # date:     2019.10.30
 # update:   2019.11.11
-# version:  01l
+# version:  01m
 #
 # written in Notepad++
 #
@@ -290,6 +290,22 @@ def pressEnterToContinue():
     input("\nPress Enter to continue...\n")
 
 
+def printSelectedFile(pathToFile, name):
+    nameLength = len(name)
+    print('\n\n\
+======================' + nameLength*'=' + '\n\
+=== selected %s file ===\n\
+======================' % (name) + nameLength*'=' + '\n\n%s\n' % (pathToFile))
+
+
+def printNewFile(fileName, name):
+    nameLength = len(name)
+    print('\n\n\n\
+=================' + nameLength*'=' + '\n\
+=== new Stratix file ===\n\
+=================' + nameLength*'=' + '\n\n%s\n' % (fileName))
+
+
 def isTarfileGood(pathToFileInRes):
     try:
         with tarfile.open(pathToFileInRes, 'r') as tar:
@@ -308,6 +324,9 @@ def extractTarfile(pathToDir, pathToFileInRes):
     try:
         with tarfile.open(pathToFileInRes, 'r') as tar:
             tar.extractall(path = pathToDir)
+    except (tarfile.TarError) as e:
+        print("\nTarfile extraction ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
+        pressEnterToExit()
     except (Exception) as e:
         print("\nTarfile extraction ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
         pressEnterToExit()
@@ -318,6 +337,9 @@ def createTarfile(pathToDir, fileName):
         with tarfile.open(fileName, 'w') as tar:
             for item in os.listdir(pathToDir):
                 tar.add(os.path.join(pathToDir, item), arcname = item)
+    except (tarfile.TarError) as e:
+        print("\nTarfile creation ERROR: %s in:\n%s\n" % (e, fileName))
+        pressEnterToExit()
     except (Exception) as e:
         print("\nTarfile creation ERROR: %s in:\n%s\n" % (e, fileName))
         pressEnterToExit()
@@ -327,16 +349,37 @@ def createDir(pathToDir):
     if not os.path.exists(pathToDir):
         try:
             os.mkdir(pathToDir)
-        except OSError as e:
+        except (OSError) as e:
             print("\nDirectory creation ERROR: %s - %s\n" % (e.filename, e.strerror))
+        except (Exception) as e:
+            print("\nDirectory creation ERROR: %s\n" % (e))
+
+
+def removeDir(pathToDir):
+    if os.path.exists(pathToDir):
+        try:
+            shutil.rmtree(pathToDir)
+        except (shutil.Error, OSError, IOError, Exception) as e:
+            print("\nDirectory removal ERROR: %s\n" % (e))
+
+
+def renameFile(fileNameOld, fileNameNew):
+    try:
+        os.rename(fileNameOld, fileNameNew)
+    except (OSError) as e:
+        print("\nFile rename ERROR: %s - %s\n" % (e.filename, e.strerror))
+    except (Exception) as e:
+        print("\nFile rename ERROR: %s\n" % (e))
 
 
 def removeFile2(pathToDir, fileName):
     try:
         os.remove(os.path.join(pathToDir, fileName))
         print("\n\n%s deleted from: %s" % (fileName, pathToDir))
-    except OSError as e:
+    except (OSError) as e:
         print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
+    except (Exception) as e:
+        print("\nFile remove ERROR: %s\n" % (e))
 
 
 def removeFile(pathToFile):
@@ -345,16 +388,23 @@ def removeFile(pathToFile):
     try:
         os.remove(pathToFile)
         print("%s deleted from: %s" % (fileName, pathToDir))
-    except OSError as e:
+    except (OSError) as e:
         print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
+    except (Exception) as e:
+        print("\nFile remove ERROR: %s\n" % (e))
 
 
-def removeDir(pathToDir):
-    if os.path.exists(pathToDir):
-        try:
-            shutil.rmtree(pathToDir)
-        except (shutil.Error, OSError, IOError) as e:
-            print("\nDirectory removal ERROR: %s\n" % (e))
+def listDirectory(pathToDir):
+    listDir = []
+    try:
+        listDir = os.listdir(pathToDir)
+    except (OSError) as e:
+        print("\nDirectory listing ERROR: %s - %s\n" % (e.filename, e.strerror))
+        pressEnterToExit()
+    except (Exception) as e:
+        print("\nDirectory listing ERROR: %s\n" % (e))
+        pressEnterToExit()
+    return listDir
 
 #-------------------------------------------------------------------------------
 
@@ -366,13 +416,16 @@ def removeDir(pathToDir):
 def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
     fileNameNew = ""
     if os.path.isfile(fileNameTemp):
-        zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameTemp)).decode(sys.stdout.encoding).strip()
-        #print('\nzutil output:\n%s\n' % (zutilOutput))
+        try:
+            zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameTemp)).decode(sys.stdout.encoding).strip()
+            #print('\nzutil output:\n%s\n' % (zutilOutput))
 
-        filenamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
-        filenameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
-        checksumNew = re.sub(fileMatcher, r'\3', zutilOutput).upper()
-        fileNameNew = filenamePrepend + '0x' + checksumNew + filenameAppend
+            filenamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
+            filenameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
+            checksumNew = re.sub(fileMatcher, r'\3', zutilOutput).upper()
+            fileNameNew = filenamePrepend + '0x' + checksumNew + filenameAppend
+        except (Exception) as e:
+            print ("\nCalculate checksum ERROR: %s\n" % (e))
     else:
         print('\nERROR: Could not find new stratix image file to calculate checksum\n')
     return fileNameNew
@@ -381,20 +434,25 @@ def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
 def getChecksum(fileNameTemp, fileMatcher):
     fileNameNew = ""
     if os.path.isfile(fileNameTemp):
-        f = open(fileNameTemp, 'rb')
-        checksum = 1
-        buffer = f.read(1024)
-        while buffer: #len(buffer) > 0:
-            checksum = zlib.adler32(buffer, checksum)
+        try:
+            f = open(fileNameTemp, 'rb')
+            checksum = 1
             buffer = f.read(1024)
-        f.close()
-        checksum = checksum & 0xffffffff
-        #print("%d %s" % (checksum, (hex(checksum))))
+            while buffer: #len(buffer) > 0:
+                checksum = zlib.adler32(buffer, checksum)
+                buffer = f.read(1024)
+            f.close()
+            checksum = checksum & 0xffffffff
+            #print("%d %s" % (checksum, (hex(checksum))))
 
-        fileNamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
-        fileNameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
-        checksumNew = re.sub(fileMatcher, r'\3', hex(checksum)).upper()
-        fileNameNew = fileNamePrepend + '0x' + checksumNew + fileNameAppend
+            fileNamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
+            fileNameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
+            checksumNew = re.sub(fileMatcher, r'\3', hex(checksum)).upper()
+            fileNameNew = fileNamePrepend + '0x' + checksumNew + fileNameAppend
+        except (OSError, IOError) as e:
+            print ("\nCalculate checksum ERROR: %s - %s\n" % (e.filename, e.strerror))
+        except (Exception) as e:
+            print ("\nCalculate checksum ERROR: %s\n" % (e))
     else:
         print('\nERROR: Could not find new stratix image file to calculate checksum\n')
     return fileNameNew
@@ -407,8 +465,9 @@ def getChecksum(fileNameTemp, fileMatcher):
 #===============================================================================
 
 def createNewIniFile(pathToFile):
-    with open(pathToFile, 'w') as f:
-        f.write("\n\
+    try:
+        with open(pathToFile, 'w') as f:
+            f.write("\n\
 The script will search this file line by line looking for the last occurrence of Nahka or Stratix image files.\n\n\
 \
 You can find example in the list below:\n\n\
@@ -431,12 +490,17 @@ If you will delete this file - a new one will be created.\n\n\
 \
 You can now put your links below (you can also delete this whole message - not recommended).\n\n\n\
 ")
+    except (IOError) as e:
+        print("\nInifile creation ERROR: %s - %s\n" % (e.filename, e.strerror))
 
 
 def loadIniFileIntoList(pathToFile):
     if os.path.isfile(pathToFile):
-        with open(pathToFile, 'r') as f:
-            return f.readlines()
+        try:
+            with open(pathToFile, 'r') as f:
+                return f.readlines()
+        except (IOError) as e:
+            print("\nInifile loading ERROR: %s - %s\n" % (e.filename, e.strerror))
     print("\nInitialization file not found...\n")
     print("%s file has been created!!!" % (pathToFile))
     print("now you will be able to specify location of Nahka and Stratix files in there\n")
@@ -455,7 +519,7 @@ def getLastModificationTime(pathToFile):
     secondsSinceEpoch = 0
     try:
         secondsSinceEpoch = os.path.getmtime(pathToFile)
-    except OSError as e:
+    except (OSError) as e:
         print("\nGetting file info ERROR: %s - %s\n" % (e.filename, e.strerror))
         pressEnterToExit()
     return secondsSinceEpoch
@@ -513,6 +577,7 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
     print("downloading file to %s" % os.path.dirname(pathToFileInRes))
     try:
         resp = requests.get(pathToFile, stream = True)
+        resp.raise_for_status()
         fileSize = int(resp.headers['Content-length']) / 1048576
         with open(pathToFileInRes, 'wb') as f:
             copied = 0
@@ -529,8 +594,11 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
             printProgress(copied, fileSize)
         print()
         print('modified on: %s (on server)' % (resp.headers['last-modified']))
-    except Exception as e:
+    except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
         print("\nFile download ERROR: %s\n" % (e))
+        pressEnterToExit()
+    except (IOError) as e:
+        print("\nFile download ERROR: %s - %s\n" % (e.filename, e.strerror))
         pressEnterToExit()
 
 
@@ -539,7 +607,7 @@ def getFileFromNetwork(pathToFile, pathToDirRes):
     try:
         #shutil.copy2(pathToFile, pathToDirRes)
         copy2(pathToFile, pathToDirRes)
-    except (shutil.Error, OSError, IOError) as e:
+    except (shutil.Error, OSError, IOError, Exception) as e:
         print("\nFile copy ERROR: %s\n" % (e))
         pressEnterToExit()
 
@@ -560,10 +628,10 @@ def isFileAvailable(pathToFile, pathIsUrl):
     if pathIsUrl:
         try:
             response = requests.head(pathToFile)
-            return response.status_code == 200 or 300 or 301 or 302 or 303 or 307 or 308
-        except Exception as e:
-            print("%s\n\nYou probably need authentication to download that file...\n" % e)
-        return False
+            return response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in braces...
+        except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
+            print("%s\n\nYou probably need authentication to download that file...\n" % (e))
+            return False
     else:
         return os.path.isfile(pathToFile)
     return False
@@ -592,10 +660,7 @@ def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = 
     pathIsUrl = isPathUrl(pathToFile, urlMatcher)
     pathToFileInRes = getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher)
 
-    print('\n\n\
-======================' + len(name)*'=' + '\n\
-=== selected %s file ===\n\
-======================' % (name) + len(name)*'=' + '\n\n%s\n' % (pathToFile))
+    printSelectedFile(pathToFile, name)
 
     fileIsAvailable = isFileAvailable(pathToFile, pathIsUrl)
     fileIsInResources = isFileInResources(pathToFileInRes)
@@ -632,66 +697,46 @@ def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = 
 #===============================================================================
 
 def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher):
-    listDirTempArtifacts = []
-    try:
-        listDirTempArtifacts = os.listdir(pathToDirTempArtifacts)
-    except OSError as e:
-        print("\nDirectory listing ERROR: %s - %s\n" % (e.filename, e.strerror))
-        pressEnterToExit()
-
+    listDirTempArtifacts = listDirectory(pathToDirTempArtifacts)
     for tempFileArtifacts in listDirTempArtifacts:
         if re.search(fileMatcher, tempFileArtifacts):
             removeFile2(pathToDirTempArtifacts, tempFileArtifacts)
     try:
         shutil.copy2(pathToFileInRes, pathToDirTempArtifacts)
         print("%s copied to: %s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
-    except (shutil.Error, OSError, IOError) as e:
+    except (shutil.Error, OSError, IOError, Exception) as e:
         print("\nFile copy ERROR: %s\n" % (e))
         pressEnterToExit()
 
 
 def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcherInstaller, fileMatcher):
-    listDirTemp = []
-    try:
-        listDirTemp = os.listdir(pathToDirTemp)
-    except OSError as e:
-        print("\nDirectory listing ERROR: %s - %s\n" % (e.filename, e.strerror))
-        pressEnterToExit()
     fileName = os.path.basename(pathToFileInRes)
+    listDirTemp = listDirectory(pathToDirTemp)
     for tempFile in listDirTemp:
         tempFilePath = os.path.join(pathToDirTemp, tempFile)
         if os.path.isfile(tempFilePath):
             if re.search(fileMatcherInstaller, tempFile):
-                with open(tempFilePath, 'r') as f:
-                    file_content = f.read()
-                    file_content = re.sub(fileMatcher, fileName, file_content)
-                with open(tempFilePath, 'w') as f:
-                    f.write(file_content)
+                try:
+                    with open(tempFilePath, 'r') as f:
+                        fileContent = f.read()
+                        fileContent = re.sub(fileMatcher, fileName, fileContent)
+                except (IOError) as e:
+                    print("\nInstaller script reading ERROR: %s - %s\n" % (e.filename, e.strerror))
+                try:
+                    with open(tempFilePath, 'w') as f:
+                        f.write(fileContent)
+                except (IOError) as e:
+                    print("\nInstaller script writing ERROR: %s - %s\n" % (e.filename, e.strerror))
                 print("%s updated in: %s" % (fileName, tempFilePath))
 
 
 def renameStratixFile(fileNameTemp, fileNameNew):
-    try:
-        os.rename(fileNameTemp, fileNameNew)
-    except OSError as e:
-        print("\nFile rename ERROR: %s - %s\n" % (e.filename, e.strerror))
-
+    renameFile(fileNameTemp, fileNameNew)
     if os.path.isfile(fileNameNew) and os.path.getsize(fileNameNew) > 0:
-        print('\n\n\n\
-=================' + len('Stratix')*'=' + '\n\
-=== new Stratix file ===\n\
-=================' + len('Stratix')*'=' + '\n\n%s\n' % (fileNameNew))
+
+        printNewFile(fileNameNew, 'Stratix')
 
         print('modified on: %s\n' % (getLastModificationTimeAsString(fileNameNew)))
-        # print('\
-# \n/============================================\\\
-# \n|                                            |\
-# \n|                                            |\
-# \n|------- FILE CREATED SUCCESSFULLY!!! -------|\
-# \n|                                            |\
-# \n|                                            |\
-# \n\\============================================/\
-# \n\n')
     else:
         print("\nSomething went wrong. New Stratix file not generated correctly\n")
 
