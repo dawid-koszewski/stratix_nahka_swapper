@@ -3,8 +3,8 @@
 #-------------------------------------------------------------------------------
 # author:   dawid.koszewski@nokia.com
 # date:     2019.10.30
-# update:   2019.11.12
-# version:  01p
+# update:   2019.11.13
+# version:  01q
 #
 # written in Notepad++
 #
@@ -353,11 +353,13 @@ def printFunFact():
 
 def pressEnterToExit():
     input("\nPress Enter to exit...\n")
+    time.sleep(1)
     sys.exit()
 
 
 def pressEnterToContinue():
     input("\nPress Enter to continue...\n")
+    time.sleep(1)
 
 
 def printSelectedFile(pathToFile, name):
@@ -405,7 +407,7 @@ def extractTarfile(pathToDir, pathToFileInRes):
 def createTarfile(pathToDir, fileName):
     try:
         with tarfile.open(fileName, 'w') as tar:
-            for item in os.listdir(pathToDir):
+            for item in listDirectory(pathToDir):
                 tar.add(os.path.join(pathToDir, item), arcname = item)
     except (tarfile.TarError) as e:
         print("\nTarfile creation ERROR: %s in:\n%s\n" % (e, fileName))
@@ -598,10 +600,10 @@ def getUnit(variable):
     return variable, variableUnit
 
 
-def printProgress(copied, fileSize, speedCur = 1048576.0, speedAvg = 1048576.0):
+def printProgress(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 1048576.0):
     percent = (copied / fileSize) * 100
     dataLeft = (fileSize - copied) #Bytes
-    timeLeftSeconds = (dataLeft / speedAvg) #Seconds
+    timeLeftSeconds = (dataLeft / speedAverage) #Seconds
 
     timeLeftHours = timeLeftSeconds / 3600
     timeLeftSeconds = timeLeftSeconds % 3600
@@ -611,7 +613,7 @@ def printProgress(copied, fileSize, speedCur = 1048576.0, speedAvg = 1048576.0):
     #padding = len(str(int(fileSize)))
     copied, copiedUnit = getUnit(copied)
     fileSize, fileSizeUnit = getUnit(fileSize)
-    speedCur, speedCurUnit = getUnit(speedCur)
+    speedCurrent, speedCurrentUnit = getUnit(speedCurrent)
 
     symbolDone = '='
     symbolLeft = '-'
@@ -619,7 +621,7 @@ def printProgress(copied, fileSize, speedCur = 1048576.0, speedAvg = 1048576.0):
     sizeDone = int((percent / 100) * sizeTotal)
     sizeLeft = sizeTotal - sizeDone
     progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
-    sys.stdout.write('\r%3d%% %s [%3.1d%s/%3.1d%s]  [%6.2f%s/s] %3.1dh%2.2dm%2.2ds' % (percent, progressBar, copied, copiedUnit, fileSize, fileSizeUnit, speedCur, speedCurUnit, timeLeftHours, timeLeftMinutes, timeLeftSeconds))
+    sys.stdout.write('\r%3d%% %s [%3.1d%s/%3.1d%s]  [%6.2f%s/s] %3.1dh%2.2dm%2.2ds' % (percent, progressBar, copied, copiedUnit, fileSize, fileSizeUnit, speedCurrent, speedCurrentUnit, timeLeftHours, timeLeftMinutes, timeLeftSeconds))
     sys.stdout.flush()
     #time.sleep(0.01) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
 
@@ -650,14 +652,7 @@ def copyfileobj(fsrc, fdst, src, length=16*1024):
         fdst.write(buffer)
         timeNow = time.time()
         timeNowData += len(buffer)
-    #calculate Average Speed
-        if timeNowData >= (dataMark + data_step):
-            timeDiff = timeNow - timeStarted
-            if timeDiff == 0:
-                timeDiff = 0.1
-            dataMark = timeNowData
-            speedAverage = (timeNowData / timeDiff) #Bytes per second
-    #calculate Current Speed
+    #update Current Speed
         if timeNow >= (timeMark + time_step):
             timeDiff = timeNow - timeMark
             if timeDiff == 0:
@@ -666,6 +661,13 @@ def copyfileobj(fsrc, fdst, src, length=16*1024):
             timeMark = timeNow
             timeMarkData = timeNowData
             speedCurrent = (dataDiff / timeDiff) #Bytes per second
+    #update Average Speed and print progress
+        if timeNowData >= (dataMark + data_step):
+            timeDiff = timeNow - timeStarted
+            if timeDiff == 0:
+                timeDiff = 0.1
+            dataMark = timeNowData
+            speedAverage = (timeNowData / timeDiff) #Bytes per second
     #print progress
             printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
     printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
@@ -697,19 +699,12 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
             speedAverage = 1048576.0
             while 1:
                 buffer = response.raw.read(128)
-                if not buf:
+                if not buffer:
                     break
                 f.write(buffer)
                 timeNow = time.time()
                 timeNowData += len(buffer)
-            #calculate Average Speed
-                if timeNowData >= (dataMark + data_step):
-                    timeDiff = timeNow - timeStarted
-                    if timeDiff == 0:
-                        timeDiff = 0.1
-                    dataMark = timeNowData
-                    speedAverage = (timeNowData / timeDiff) #Bytes per second
-            #calculate Current Speed
+            #update Current Speed
                 if timeNow >= (timeMark + time_step):
                     timeDiff = timeNow - timeMark
                     if timeDiff == 0:
@@ -718,10 +713,17 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
                     timeMark = timeNow
                     timeMarkData = timeNowData
                     speedCurrent = (dataDiff / timeDiff) #Bytes per second
+            #update Average Speed and print progress
+                if timeNowData >= (dataMark + data_step):
+                    timeDiff = timeNow - timeStarted
+                    if timeDiff == 0:
+                        timeDiff = 0.1
+                    dataMark = timeNowData
+                    speedAverage = (timeNowData / timeDiff) #Bytes per second
             #print progress
                     printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
             printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
-        print()
+            print()
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
         print("\nFile download ERROR: %s\n" % (e))
         pressEnterToExit()
@@ -897,7 +899,7 @@ def getLastModificationTimeAsString(pathToFile):
 
 def getPathToLatestFileInDir(pathToDir, matcher, comparator):
     filesList = []
-    for item in os.listdir(pathToDir):
+    for item in listDirectory(pathToDir):
         pathToFile = os.path.join(pathToDir, item)
         if os.path.isfile(pathToFile):
             if matcher.search(item):
