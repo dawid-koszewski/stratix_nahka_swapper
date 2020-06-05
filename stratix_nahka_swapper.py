@@ -7,7 +7,7 @@
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
 # update:       2019.12.03
-# version:      02b
+# version:      02c
 #
 # written in Notepad++
 #
@@ -55,30 +55,30 @@ import time
 
 def pressEnterToExit():
 #1.
-    try:
-        raw_input("\nPress Enter to exit...\n") #python2 only
-    except (SyntaxError, Exception) as e:
-        input("\nPress Enter to exit...\n") #python3 only
-#2.
     # try:
-        # input("\nPress Enter to exit...\n") #python3 only
+        # raw_input("\nPress Enter to exit...\n") #python2 only
     # except (SyntaxError, Exception) as e:
-        # pass
+        # input("\nPress Enter to exit...\n") #python3 only
+#2.
+    try:
+        input("\nPress Enter to exit...\n") #python3 only
+    except (SyntaxError, Exception) as e:
+        pass
     time.sleep(1)
     sys.exit()
 
 
 def pressEnterToContinue():
 #1.
-    try:
-        raw_input("\nPress Enter to continue...\n") #python2 only
-    except (SyntaxError, Exception) as e:
-        input("\nPress Enter to continue...\n") #python3 only
-#2.
     # try:
-        # input("\nPress Enter to continue...\n")  #python3 only
+        # raw_input("\nPress Enter to continue...\n") #python2 only
     # except (SyntaxError, Exception) as e:
-        # pass
+        # input("\nPress Enter to continue...\n") #python3 only
+#2.
+    try:
+        input("\nPress Enter to continue...\n")  #python3 only
+    except (SyntaxError, Exception) as e:
+        pass
     time.sleep(1)
 
 #-------------------------------------------------------------------------------
@@ -3225,43 +3225,41 @@ def createNewIniFile(pathToFile):
 \n\
 \n\
 \n\
-# Examples of typical paths:\n\
+# 1. Examples of typical paths:\n\
 \n\
-# PATH_NAHKA =   V:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\n\
-# PATH_STRATIX = R:\\some_user\\stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib\n\
+# 1a. If you will not specify full path to file - script will automatically find the newest file in a given directory:\n\
+#     PATH_NAHKA = V:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\n\
+#     PATH_STRATIX = R:\\some_user\\stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib\n\
 \n\
-# PATH_NAHKA =   var/fpwork/some_user/nahka/tmp/deploy/images/nahka/FRM-rfsw-image-install_20190231120000-multi.tar\n\
-# PATH_STRATIX = C:\\LocalDir\\SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
+# 1b. Equal sign \"=\" is optional. Count of spaces \" \" before and after path also doesn't matter:\n\
+#     PATH_NAHKA ./nahka/tmp/deploy/images/nahka/FRM-rfsw-image-install_20190231120000-multi.tar\n\
+#     PATH_STRATIX                   C:\\LocalDir\\SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar       #you can also put comments after path (just put a hash sign \"#\" before comment)\n\
 \n\
-# If you will not specify full path to file - script will automatically find the newest file in a given directory.\n\
-\n\
-\n\
-\n\
-# Example of how to download newest Nahka file when running this script on Stratix build server:\n\
-\n\
-# PATH_NAHKA = some_user@wrlinb110.emea.nsn-net.net:/var/fpwork/some_user/nahka/tmp/deploy/images/nahka/\n\
-\n\
-# Please remember to put a colon sign \":\" between server address and a path to directory\n\
+# 1c. If a directory name is just some number (eg. \"1234\") - put \"./\" before it's name (eg. \"./1234\") to differentiate it from artifactory URL build number:\n\
+#     PATH_NAHKA = LocalDir\n\
+#     PATH_STRATIX = ./1234\n\
 \n\
 \n\
 \n\
-# Example of how to download file from artifactory:\n\
+# 2. Example of how to download newest Nahka file when running this script on Stratix build server:\n\
 \n\
-# PATH_STRATIX = https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1234/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
-\n\
-# or\n\
-\n\
-# PATH_ARTIFACTORY_TEMPLATE = https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/*******/C_Element/SE_RFM/SS_mMIMO_FDD/Target\n\
-# PATH_STRATIX = 1234\n\
-\n\
-# You can specify only Jenkins build number which will automatically use PATH_ARTIFACTORY_TEMPLATE to generate full URL\n\
-# (count of stars \"*******\" in the template doesn't matter, but at least one star \"*\" must be present to indicate build number in URL)\n\
-\n\
-# NOTE: If you just want to search for Stratix file in local directory named with just a number \"1234\" - write PATH_STRATIX = ./1234 - to differentiate it from artifactory build number\n\
+# 2a. Please remember to put a colon sign \":\" between server address and a path to directory:\n\
+#     PATH_NAHKA = some_user@wrlinb110.emea.nsn-net.net:/var/fpwork/some_user/nahka/tmp/deploy/images/nahka\n\
+#     PATH_STRATIX = ./stratix10-aaib/tmp-glibc/deploy/images/stratix10-aaib\n\
 \n\
 \n\
 \n\
-# . Dot is just a path to current working directory (both on linux and windows).\n\
+# 3. Example of how to download file from artifactory:\n\
+\n\
+# 3a. You can specify only a Jenkins build number which will automatically use PATH_ARTIFACTORY_TEMPLATE to generate full URL.\n\
+#     Count of stars \"*******\" in the template doesn't matter, but at least one star \"*\" must be present to indicate build number position in URL:\n\
+#     PATH_ARTIFACTORY_TEMPLATE = https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/*******/C_Element/SE_RFM/SS_mMIMO_FDD/Target\n\
+#     PATH_NAHKA = .\n\
+#     PATH_STRATIX = 1234\n\
+\n\
+# 3b. You can also use just a direct URL to a file:\n\
+#     PATH_STRATIX = https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1234/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
+\n\
 \n\
 \n\
 PATH_ARTIFACTORY_TEMPLATE = https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/*******/C_Element/SE_RFM/SS_mMIMO_FDD/Target\n\
@@ -3303,8 +3301,11 @@ def loadIniFileIntoList(pathToFile):
     return []
 
 
-def getPathFromLine(index, line, pathName):
-    line = line[index+len(pathName):]
+def getPathFromLine(index, commentIndex, line, pathName):
+    if commentIndex > 0:
+        line = line[index+len(pathName):commentIndex]
+    else:
+        line = line[index+len(pathName):]
     line = line.lstrip()
     line = line.lstrip('=')
     line = line.strip()
@@ -3327,15 +3328,15 @@ def getPathsFromIniFile(pathToFileIni):
                 continue
             index = line.find(pathNahka)
             if index >= 0 and (index < commentIndex or commentIndex < 0):
-                PATH_NAHKA = getPathFromLine(index, line, pathNahka)
+                PATH_NAHKA = getPathFromLine(index, commentIndex, line, pathNahka)
                 continue
             index = line.find(pathStratix)
             if index >= 0 and (index < commentIndex or commentIndex < 0):
-                PATH_STRATIX = getPathFromLine(index, line, pathStratix)
+                PATH_STRATIX = getPathFromLine(index, commentIndex, line, pathStratix)
                 continue
             index = line.find(pathArtifactoryTemplate)
             if index >= 0 and (index < commentIndex or commentIndex < 0):
-                PATH_ARTIFACTORY_TEMPLATE = getPathFromLine(index, line, pathArtifactoryTemplate)
+                PATH_ARTIFACTORY_TEMPLATE = getPathFromLine(index, commentIndex, line, pathArtifactoryTemplate)
     else:
         PATH_NAHKA = "."
         PATH_STRATIX = "."
