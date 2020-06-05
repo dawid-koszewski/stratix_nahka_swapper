@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.11.25
-# version:      01y (spaghetti edition - due to new feature "sftp" used to list files from other server when running on linux)
+# update:       2019.11.26
+# version:      01z (spaghetti edition - due to new feature "sftp" used to list files from other server when running on linux)
 #
 # written in Notepad++
 #
@@ -139,11 +139,11 @@ def printDetectedAndSupportedPythonVersion():
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 4 and PYTHON_PATCH >= 5)
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 5 and PYTHON_PATCH >= 2)
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR >= 6)):
-        print("\ndetected python version: %d.%d.%d [SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+        print("\ndetected python version: %d.%d.%d [SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)\n" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
     elif (PYTHON_MAJOR >= 4):
-        print("\ndetected python version: %d.%d.%d [PROBABLY SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+        print("\ndetected python version: %d.%d.%d [PROBABLY SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)\n" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
     else:
-        print("\ndetected python version: %d.%d.%d [NOT TESTED]\n(it is highly recommended to upgrade to 2.6.6, 2.7.4, 3.3.5, 3.8.0 or any newer)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+        print("\ndetected python version: %d.%d.%d [NOT TESTED]\n(it is highly recommended to upgrade to 2.6.6, 2.7.4, 3.3.5, 3.8.0 or any newer)\n" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
 
 #-------------------------------------------------------------------------------
 
@@ -3141,34 +3141,55 @@ def createNewIniFile(pathToFile):
     try:
         f = open(pathToFile, 'w')
         try:
-            f.write("\n\
-The script will search this file line by line looking for the last occurrence of Nahka or Stratix image files.\n\n\
-\
-You can find example list below:\n\n\
-v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\\FRM-rfsw-image-install_20190231120000-multi.tar\n\
-v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\n\
-i:\\some_user\\stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib\\\n\
-https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1578/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
-C:\\LocalDir\n\n\
-\
-1. if C:\\LocalDir contains Nahka and Stratix file - it will copy both of them from C:\\LocalDir\n\
-2. if C:\\LocalDir contains only Nahka file - it will copy it and download Stratix file from web\n\
-3. if C:\\LocalDir is empty - it will copy newest Nahka file from v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka directory and download Stratix file from web\n\n\
-\
-When you are running this script in linux console - please specify linux relative or absolute paths, for example:\n\
-../nahka/tmp/deploy/images/nahka\n\
-some_user@wrlinb225.emea.nsn-net.net:/var/fpwork2/some_user/stratix10-aaib/tmp-glibc/deploy/images/stratix10-aaib\n\n\
-\
-You can keep a lot of helper links in this ini file but remember to put them above the ones desired for current build.\n\
-Script will always pick the last found occurrence of Nahka or Stratix file location - so place your desired paths at the very bottom!!!\n\n\
-\
-If you will delete this ini file - a new one will be created.\n\n\
-\
-You can now put your links below (you can also delete this whole message - not recommended).\n\n\
-\
-. - dot means current working directory (works in both linux and windows).\n\n\
-\
-.\n\
+            f.write("\
+# You can specify PATH_NAHKA and PATH_STRATIX tokens in this file.\n\
+#\n\
+# Example of path types allowed:\n\
+#\n\
+# when running on windows or linux:\n\
+#   https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/0000/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
+#   https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/0000/C_Element/SE_RFM/SS_mMIMO_FDD/Target\n\
+#\n\
+# PLEASE NOTE: You can use shorter link to artifactory and script will automatically find proper Stratix file if you update this ^^^^ build number\n\
+#\n\
+#\n\
+# when running on windows:\n\
+#   C:\LocalDir\FRM-rfsw-image-install_20190231120000-multi.tar\n\
+#   C:\LocalDir\n\
+#   ..\LocalDir\FRM-rfsw-image-install_20190231120000-multi.tar\n\
+#   ..\LocalDir\n\
+#\n\
+# when running on windows and using mapped disk drives:\n\
+#   V:\some_user\\nahka\\tmp\deploy\images\\nahka\FRM-rfsw-image-install_20190231120000-multi.tar\n\
+#   V:\some_user\\nahka\\tmp\deploy\images\\nahka\n\
+#   R:\some_user\stratix10-aaib\\tmp-glibc\deploy\images\stratix10-aaib\SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
+#   R:\some_user\stratix10-aaib\\tmp-glibc\deploy\images\stratix10-aaib\n\
+#\n\
+#\n\
+# when running on linux:\n\
+#   var/fpwork/some_user/nahka/tmp/deploy/images/nahka/FRM-rfsw-image-install_20190231120000-multi.tar\n\
+#   var/fpwork/some_user/nahka/tmp/deploy/images/nahka\n\
+#   ../nahka/FRM-rfsw-image-install_20190231120000-multi.tar\n\
+#   ../nahka\n\
+#\n\
+# when running on linux and connecting to other servers:\n\
+#   some_user@wrlinb225.emea.nsn-net.net:/var/fpwork2/some_user/stratix10-aaib/tmp-glibc/deploy/images/stratix10-aaib/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
+#   some_user@wrlinb225.emea.nsn-net.net:/var/fpwork2/some_user/stratix10-aaib/tmp-glibc/deploy/images/stratix10-aaib\n\
+#   some_user@wrling09.emea.nsn-net.net:/var/fpwork/some_user\n\
+#\n\
+#\n\
+# PLEASE NOTE: you don't have to specify exact file path... Script will automatically find the latest file (most recently modified, the newest)\n\
+#\n\
+# If you will delete this ini file - a new one will be created.\n\
+#\n\
+# You can now put your links below (you can also delete this whole message - not recommended).\n\
+#\n\
+# . - dot means current working directory (both on linux and windows).\n\
+\n\
+\n\
+\n\
+PATH_NAHKA = .\n\
+PATH_STRATIX = .\n\
 ")
             f.close()
         except (OSError, IOError) as e:
@@ -3243,7 +3264,7 @@ def getPathToFileUnderUrl(url, fileMatcher):
             for line in responseHTML:
                 line = line.strip()
                 if fileMatcher.search(line):
-                    fileName = fileMatcher.sub(r'\2\3\4\5', line)
+                    fileName = fileMatcher.sub(r'\2\3\4', line)
                     if url.endswith('/'):
                         pathToFile = url + fileName
                     else:
@@ -3267,53 +3288,69 @@ def getPathToLatestFileInDir(pathToDir, fileMatcher, comparator):
     return filesList[-1] if filesList else ""
 
 
-def getPathToLatestFileOnServer(line, pathMatcher): #FAKE (spaghetti) - functionality forwarded to next function which is using "sftp as subprocess"
-    pathFull = ""
-    if pathMatcher.search(line):
-        pathFull = line
-    return pathFull
+def getPathFromLine(index, line, pathName):
+    line = line[index+len(pathName):]
+    line = line.lstrip()
+    line = line.lstrip('=')
+    line = line.strip()
+    return line
 
 
-def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, urlMatcher, serverMatcher, pathMatcherNahka, pathMatcherStratix):
+def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, urlMatcher, serverMatcher):
     pathToFileNahka = ""
     pathToFileStratix = ""
     iniFileLinesList = loadIniFileIntoList(pathToFileIni)
+
+    PATH_NAHKA = ""
+    PATH_STRATIX = ""
+    ARTIFACTORY_TEMPLATE_PATH = ""
+    ARTIFACTORY_TEMPLATE_NUMBER = ""
+    pathNahka = 'PATH_NAHKA'
+    pathStratix = 'PATH_STRATIX'
+    artifactoryTemplatePath = 'ARTIFACTORY_TEMPLATE_PATH'
+    artifactoryTemplateNumber = 'ARTIFACTORY_TEMPLATE_NUMBER'
+
     if iniFileLinesList:
         for line in iniFileLinesList:
-            line = line.strip()
-#
-#
-# TO BE COMPLETELY REWORKED
-#
-#
-            if serverMatcher.search(line):
-                pathToFileOnServerNahka = getPathToLatestFileOnServer(line, pathMatcherNahka)
-                if pathToFileOnServerNahka:
-                    pathToFileNahka = pathToFileOnServerNahka
-                pathToFileOnServerStratix = getPathToLatestFileOnServer(line, pathMatcherStratix)
-                if pathToFileOnServerStratix:
-                    pathToFileStratix = pathToFileOnServerStratix
+            index = line.find(pathNahka)
+            if index >= 0:
+                PATH_NAHKA = getPathFromLine(index, line, pathNahka)
+                continue
+            index = line.find(pathStratix)
+            if index >= 0:
+                PATH_STRATIX = getPathFromLine(index, line, pathStratix)
+                # continue
+            # index = line.find(artifactoryTemplatePath)
+            # if index >= 0:
+                # ARTIFACTORY_TEMPLATE_PATH = getPathFromLine(index, line, artifactoryTemplatePath)
+                # continue
+            # index = line.find(artifactoryTemplateNumber)
+            # if index >= 0:
+                # ARTIFACTORY_TEMPLATE_NUMBER = getPathFromLine(index, line, artifactoryTemplateNumber)
 
-            elif fileMatcherNahka.search(line):
-                pathToFileNahka = line
-            elif fileMatcherStratix.search(line):
-                pathToFileStratix = line
+#
+#
+# TO BE COMPLETELY REWORKED - ...UNDER REFACTORING
+#
+#
 
-            elif urlMatcher.search(line):
-                pathToFileUnderUrlNahka = getPathToFileUnderUrl(line, fileMatcherNahka)
-                if pathToFileUnderUrlNahka:
-                    pathToFileNahka = pathToFileUnderUrlNahka
-                pathToFileUnderUrlStratix = getPathToFileUnderUrl(line, fileMatcherStratix)
-                if pathToFileUnderUrlStratix:
-                    pathToFileStratix = pathToFileUnderUrlStratix
+        if serverMatcher.search(PATH_NAHKA):
+            pathToFileNahka = PATH_NAHKA
+        elif fileMatcherNahka.search(PATH_NAHKA):
+            pathToFileNahka = PATH_NAHKA
+        elif urlMatcher.search(PATH_NAHKA):
+            pathToFileNahka = getPathToFileUnderUrl(PATH_NAHKA, fileMatcherNahka)
+        elif os.path.isdir(PATH_NAHKA):
+            pathToFileNahka = getPathToLatestFileInDir(PATH_NAHKA, fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
 
-            elif os.path.isdir(line):
-                pathToLatestFileInDirNahka = getPathToLatestFileInDir(line, fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
-                if pathToLatestFileInDirNahka:
-                    pathToFileNahka = pathToLatestFileInDirNahka
-                pathToLatestFileInDirStratix = getPathToLatestFileInDir(line, fileMatcherStratix, getLastModificationTime)
-                if pathToLatestFileInDirStratix:
-                    pathToFileStratix = pathToLatestFileInDirStratix
+        if serverMatcher.search(PATH_STRATIX):
+            pathToFileStratix = PATH_STRATIX
+        elif fileMatcherStratix.search(PATH_STRATIX):
+            pathToFileStratix = PATH_STRATIX
+        elif urlMatcher.search(PATH_STRATIX):
+            pathToFileStratix = getPathToFileUnderUrl(PATH_STRATIX, fileMatcherStratix)
+        elif os.path.isdir(PATH_STRATIX):
+            pathToFileStratix = getPathToLatestFileInDir(PATH_STRATIX, fileMatcherStratix, getLastModificationTime)
 
     else:
         pathToFileNahka = getPathToLatestFileInDir('.', fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
@@ -3353,17 +3390,13 @@ def main():
     fileMatcherNahka     = re.compile(r'(.*)(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)(.*)')
     fileMatcherStratix   = re.compile(r'(.*)(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar)(.*)')
     fileMatcherInstaller = re.compile(r'.*-installer.sh')
-    pathMatcherNahka     = re.compile(r'.*(nahka)([\/\\]{1,2})(tmp)([\/\\]{1,2})(deploy)([\/\\]{1,2})(images)([\/\\]{1,2})(nahka).*')
-    pathMatcherStratix   = re.compile(r'.*(stratix10-aaib)([\/\\]{1,2})(tmp-glibc)([\/\\]{1,2})(deploy)([\/\\]{1,2})(images)([\/\\]{1,2})(stratix10-aaib).*')
-    #pathMatcherNahka     = re.compile(r'.*(nahka).*')
-    #pathMatcherStratix   = re.compile(r'.*(stratix).*')
 
     printDetectedAndSupportedPythonVersion()
 
     #----------------------------
     # paths to latest files found
     #----------------------------
-    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, urlMatcher, serverMatcher, pathMatcherNahka, pathMatcherStratix)
+    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, urlMatcher, serverMatcher)
     pathToFileNahka = pathsToLatestFiles.get("pathToLatestFileNahka", "")
     pathToFileStratix = pathsToLatestFiles.get("pathToLatestFileStratix", "")
 
