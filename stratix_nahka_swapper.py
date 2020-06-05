@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.12.03
-# version:      02c
+# update:       2019.12.04
+# version:      02d
 #
 # written in Notepad++
 #
@@ -135,6 +135,7 @@ PYTHON_MINOR = sys.version_info[1]
 PYTHON_PATCH = sys.version_info[2]
 
 def printDetectedAndSupportedPythonVersion():
+    print("please do not hesitate to contact: dawid.koszewski@nokia.com")
     if((PYTHON_MAJOR == 2 and PYTHON_MINOR == 6 and PYTHON_PATCH >= 6)
     or (PYTHON_MAJOR == 2 and PYTHON_MINOR == 7 and PYTHON_PATCH >= 4)
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 3 and PYTHON_PATCH >= 5)
@@ -2588,8 +2589,10 @@ def renameFile(fileNameOld, fileNameNew):
         os.rename(fileNameOld, fileNameNew)
     except (OSError) as e:
         print("\nFile rename ERROR: renameFile(e1) %s - %s" % (e.filename, e.strerror))
+        pressEnterToExit()
     except (Exception) as e:
         print("\nFile rename ERROR: renameFile(e2) %s" % (e))
+        pressEnterToExit()
 
 
 def removeFile2(pathToDir, fileName):
@@ -2733,68 +2736,130 @@ def printProgressBar(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 
 
 def handleProgressBarWithinLoop(vars, buffer, fileSize):
     try:
-        # timeNow = time.time()
-        # timeNowData += len(buffer)
+    #------------------------------------------
+    # less readable and probably slower version
+    #------------------------------------------
+        # vars['timeNow'] = time.time()
+        # vars['timeNowData'] += len(buffer)
     # #update Current Speed
-        # if timeNow >= (timeMark + time_step):
-            # timeDiff = timeNow - timeMark
-            # if timeDiff == 0:
-                # timeDiff = 0.1
-            # dataDiff = timeNowData - timeMarkData
-            # timeMark = timeNow
-            # timeMarkData = timeNowData
-            # speedCurrent = (dataDiff / timeDiff) #Bytes per second
+        # if vars['timeNow'] >= (vars['timeMark'] + vars['time_step']):
+            # vars['timeDiff'] = vars['timeNow'] - vars['timeMark']
+            # if vars['timeDiff'] == 0:
+                # vars['timeDiff'] = 0.1
+            # vars['dataDiff'] = vars['timeNowData'] - vars['timeMarkData']
+            # vars['timeMark'] = vars['timeNow']
+            # vars['timeMarkData'] = vars['timeNowData']
+            # vars['speedCurrent'] = (vars['dataDiff'] / vars['timeDiff']) #Bytes per second
     # #update Average Speed and print progress
-        # if timeNowData >= (dataMark + data_step):
-            # timeDiff = timeNow - timeStarted
-            # if timeDiff == 0:
-                # timeDiff = 0.1
-            # dataMark = timeNowData
-            # speedAverage = (timeNowData / timeDiff) #Bytes per second
+        # if vars['timeNowData'] >= (vars['dataMark'] + vars['data_step']):
+            # vars['timeDiff'] = vars['timeNow'] - vars['timeStarted']
+            # if vars['timeDiff'] == 0:
+                # vars['timeDiff'] = 0.1
+            # vars['dataMark'] = vars['timeNowData']
+            # vars['speedAverage'] = (vars['timeNowData'] / vars['timeDiff']) #Bytes per second
+    # except (Exception) as e:
+        # print("\nProgress bar ERROR: handleProgressBarWithinLoop(e) %s" % (e))
     # #print progress
-            # printProgressBar(timeNowData, fileSize, speedCurrent, speedAverage)
+    # printProgressBar(vars['timeNowData'], fileSize, vars['speedCurrent'], vars['speedAverage'])
 
-    # it would be more readible to unpack a list, do calculations, and pack the list again (assign data)
 
-        vars['timeNow'] = time.time()
-        vars['timeNowData'] += len(buffer)
+    #------------------------------------------
+    # more readable and probably faster version
+    #------------------------------------------
+
+    #----------------------------
+    # get values from list
+    #----------------------------
+        timeStarted     = vars[0]
+        data_step       = vars[1]
+        dataMark        = vars[2]
+        time_step       = vars[3]
+        timeMark        = vars[4]
+        timeMarkData    = vars[5]
+        timeNow         = vars[6]
+        timeNowData     = vars[7]
+        speedCurrent    = vars[8]
+        speedAverage    = vars[9]
+    #----------------------------
+
+        timeNow = time.time()
+        timeNowData += len(buffer)
     #update Current Speed
-        if vars['timeNow'] >= (vars['timeMark'] + vars['time_step']):
-            vars['timeDiff'] = vars['timeNow'] - vars['timeMark']
-            if vars['timeDiff'] == 0:
-                vars['timeDiff'] = 0.1
-            vars['dataDiff'] = vars['timeNowData'] - vars['timeMarkData']
-            vars['timeMark'] = vars['timeNow']
-            vars['timeMarkData'] = vars['timeNowData']
-            vars['speedCurrent'] = (vars['dataDiff'] / vars['timeDiff']) #Bytes per second
+        if timeNow >= (timeMark + time_step):
+            timeDiff = timeNow - timeMark
+            if timeDiff == 0:
+                timeDiff = 0.1
+            dataDiff = timeNowData - timeMarkData
+            timeMark = timeNow
+            timeMarkData = timeNowData
+            speedCurrent = (dataDiff / timeDiff) #Bytes per second
     #update Average Speed and print progress
-        if vars['timeNowData'] >= (vars['dataMark'] + vars['data_step']):
-            vars['timeDiff'] = vars['timeNow'] - vars['timeStarted']
-            if vars['timeDiff'] == 0:
-                vars['timeDiff'] = 0.1
-            vars['dataMark'] = vars['timeNowData']
-            vars['speedAverage'] = (vars['timeNowData'] / vars['timeDiff']) #Bytes per second
-    #print progress
+        if timeNowData >= (dataMark + data_step):
+            timeDiff = timeNow - timeStarted
+            if timeDiff == 0:
+                timeDiff = 0.1
+            dataMark = timeNowData
+            speedAverage = (timeNowData / timeDiff) #Bytes per second
+
+    #----------------------------
+    # update list
+    #----------------------------
+        vars[2] = dataMark
+        vars[4] = timeMark
+        vars[5] = timeMarkData
+        vars[6] = timeNow
+        vars[7] = timeNowData
+        vars[8] = speedCurrent
+        vars[9] = speedAverage
+    #----------------------------
+
     except (Exception) as e:
         print("\nProgress bar ERROR: handleProgressBarWithinLoop(e) %s" % (e))
-    printProgressBar(vars['timeNowData'], fileSize, vars['speedCurrent'], vars['speedAverage'])
+    #print progress
+    printProgressBar(timeNowData, fileSize, speedCurrent, speedAverage)
 
 
 def initProgressBarVariables():
     try:
-        progressBarVars = {}
+        # progressBarVars = {}
 
-        progressBarVars['timeStarted'] = time.time()
-        progressBarVars['data_step'] = 131072
-        progressBarVars['dataMark'] = 0
+        # progressBarVars['timeStarted'] = time.time()
+        # progressBarVars['data_step'] = 131072
+        # progressBarVars['dataMark'] = 0
 
-        progressBarVars['time_step'] = 1.0
-        progressBarVars['timeMark'] = time.time()
-        progressBarVars['timeMarkData'] = 0.0
-        progressBarVars['timeNow'] = 0.0
-        progressBarVars['timeNowData'] = 0.0
-        progressBarVars['speedCurrent'] = 1048576.0
-        progressBarVars['speedAverage'] = 1048576.0
+        # progressBarVars['time_step'] = 1.0
+        # progressBarVars['timeMark'] = time.time()
+        # progressBarVars['timeMarkData'] = 0
+        # progressBarVars['timeNow'] = 0.0
+        # progressBarVars['timeNowData'] = 0
+        # progressBarVars['speedCurrent'] = 1048576.0
+        # progressBarVars['speedAverage'] = 1048576.0
+
+        progressBarVars = [1.0] * 10
+
+        timeStarted = time.time()
+        data_step = 131072
+        dataMark = 0
+
+        time_step = 1.0
+        timeMark = time.time()
+        timeMarkData = 0
+        timeNow = 0.0
+        timeNowData = 0
+        speedCurrent = 1048576.0
+        speedAverage = 1048576.0
+
+        progressBarVars[0] = timeStarted
+        progressBarVars[1] = data_step
+        progressBarVars[2] = dataMark
+        progressBarVars[3] = time_step
+        progressBarVars[4] = timeMark
+        progressBarVars[5] = timeMarkData
+        progressBarVars[6] = timeNow
+        progressBarVars[7] = timeNowData
+        progressBarVars[8] = speedCurrent
+        progressBarVars[9] = speedAverage
+
     except (Exception) as e:
         print("\nProgress bar ERROR: initProgressBarVariables(e) %s" % (e))
     return progressBarVars
@@ -2825,7 +2890,7 @@ def getChecksum(fileNameTemp, fileMatcher):
                     checksum = zlib.adler32(buffer, checksum)
 
                     handleProgressBarWithinLoop(progressBarVars, buffer, fileSize)
-                printProgressBar(progressBarVars['timeNowData'], fileSize, progressBarVars['speedCurrent'], progressBarVars['speedAverage'])
+                printProgressBar(progressBarVars[7], fileSize, progressBarVars[8], progressBarVars[9])
                 print()
 
                 f.close()
@@ -2836,6 +2901,7 @@ def getChecksum(fileNameTemp, fileMatcher):
                 checksumHex = "%x" % checksum
                 checksumFormatted = '0x' + ((checksumHex.zfill(8)).upper())
                 fileNameNew = fileNamePrepend + checksumFormatted + fileNameAppend
+                print("\nadler32 checksum: %d (0x%s)" % (checksum, checksumHex.zfill(8)))
             except (OSError, IOError) as e:
                 print("\nCalculate checksum ERROR: getChecksum(e1) %s - %s" % (e.filename, e.strerror))
             finally:
@@ -2934,7 +3000,7 @@ def copyfileobj(fsrc, fdst, src, length = 1024*1024): #default 64*1024 for linux
         fdst.write(buffer)
 
         handleProgressBarWithinLoop(progressBarVars, buffer, fileSize)
-    printProgressBar(progressBarVars['timeNowData'], fileSize, progressBarVars['speedCurrent'], progressBarVars['speedAverage'])
+    printProgressBar(progressBarVars[7], fileSize, progressBarVars[8], progressBarVars[9])
     print()
 
 #-------------------------------------------------------------------------------
@@ -2980,7 +3046,7 @@ def getFileFromArtifactory(pathToFile, pathToDirRes, pathToFileInRes):
                     f.write(buffer)
 
                     handleProgressBarWithinLoop(progressBarVars, buffer, fileSize)
-                printProgressBar(progressBarVars['timeNowData'], fileSize, progressBarVars['speedCurrent'], progressBarVars['speedAverage'])
+                printProgressBar(progressBarVars[7], fileSize, progressBarVars[8], progressBarVars[9])
                 print()
 
                 f.close()
