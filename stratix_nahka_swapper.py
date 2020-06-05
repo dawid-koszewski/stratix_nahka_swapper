@@ -5,9 +5,12 @@
 # date:     2019.10.30
 #
 # written in Notepad++
+#
+#
 #-----------------------------------------------------------------
 
-# pip install wget # when you are having problems running this script
+# when you are having problems running this script:
+# pip install wget
 
 import sys
 import re
@@ -17,6 +20,7 @@ import subprocess
 import shutil
 import wget
 import tarfile
+import zlib
 
 #-------------------------------------------------------------------------------
 
@@ -34,7 +38,7 @@ In the list below for example:\n\n\
 i:\\some_user\\stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix-aaib\n\
 v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\\FRM-rfsw-image-install_20190231120000-multi.tar\n\
 v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\n\
-https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1578/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0x00000000.tar\n\
+https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1578/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
 C:\\LocalDir\n\n\
 \
 1. if C:\\LocalDir contains Nahka file it will copy it and download Stratix file from artifactory\n\
@@ -49,14 +53,11 @@ If the script will not be able to find Nahka or Stratix files in any location it
 \
 If you will delete this file - a new one will be created.\n\n\
 \
-You can now put your links below (you can also delete this whole message - not recommended).\n\n\
-\
-.\n\n\n\
-\
+You can now put your links below (you can also delete this whole message - not recommended).\n\n\n\
 ")
 
 
-def loadFileIntoList(pathToFile):
+def loadIniFileIntoList(pathToFile):
     if os.path.isfile(pathToFile):
         with open(pathToFile, 'r') as f:
             return f.readlines()
@@ -76,7 +77,7 @@ def getLastModificationTime(pathToFile):
     try:
         secondsSinceEpoch = os.path.getmtime(pathToFile)
     except OSError as e:
-        print("Error: %s - %s.\n" % (e.filename, e.strerror))
+        print("Getting file info ERROR: %s - %s.\n" % (e.filename, e.strerror))
     return secondsSinceEpoch
 
 
@@ -98,7 +99,7 @@ def getPathToLatestFileInDir(pathToDir, matcher, comparator):
 def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
     pathToFileNahka = ""
     pathToFileStratix = ""
-    for line in loadFileIntoList(pathToFileIni):
+    for line in loadIniFileIntoList(pathToFileIni):
         line = line.strip()
         if re.search(fileMatcherNahka, line):
             pathToFileNahka = line
@@ -132,48 +133,51 @@ def getStratixFileNameFromLink(pathToFileStratix, fileMatcherStratix):
     return re.sub(fileMatcherStratix, r'\1\2\3', pathToFileStratix)
 
 
-def getImageFromLinsee(fileName, pathToFile):
+def getFile(fileName, pathToFile):
     if not os.path.isfile(fileName):
         print("copying to current working directory...\n")
         try:
             shutil.copy2(pathToFile, '.')#, *, follow_symlinks = True)
-        except (shutil.Error, OSError, IOError):
-            e = get_exception()
-            print("Error: %s - %s.\n" % (e.filename, e.strerror))
+        except (shutil.Error, OSError, IOError) as e:
+            print("File copy ERROR: %s - %s.\n" % (e.filename, e.strerror))
+            time.sleep(5)
+            sys.exit()
     else:
         print("already present in current working directory!\n")
 
 
-def getImageFromArtifactory(fileName, pathToFile):
+def getFileFromArtifactory(fileName, pathToFile):
     if not os.path.isfile(fileName):
         print("downloading to current working directory...\n")
         try:
             wget.download(pathToFile, '.')
         except Exception as e:
-            print("Error: %s.\n" % (e))
+            print("File download ERROR: %s.\n" % (e))
+            time.sleep(5)
+            sys.exit()
     else:
         print("already present in current working directory!\n")
 
 
 def getFileNahka(pathToFileNahka, fileMatcherNahka):
-    print('\n\n === selected Nahka file ===\n\n%s\n' % (pathToFileNahka))
+    print('\n\n\n === selected Nahka file ===\n\n%s\n' % (pathToFileNahka))
     fileNameNahka = os.path.basename(pathToFileNahka)
-    getImageFromLinsee(fileNameNahka, pathToFileNahka)
+    getFile(fileNameNahka, pathToFileNahka)
     print(' --- file last modified: %s ---\n\n' % (getLastModificationTimeAsString(pathToFileNahka)))
     return fileNameNahka
 
 
 def getFileStratix(pathToFileStratix, fileMatcherStratix):
     fileNameStratix = ""
-    print('\n\n === selected Stratix file ===\n\n%s\n' % (pathToFileStratix))
+    print('\n\n\n === selected Stratix file ===\n\n%s\n' % (pathToFileStratix))
     if re.search(r'https://', pathToFileStratix):
         fileNameStratix = getStratixFileNameFromLink(pathToFileStratix, fileMatcherStratix)
-        getImageFromArtifactory(fileNameStratix, pathToFileStratix)
-        print(' --- file last modified: %s ---\n\n' % (getLastModificationTimeAsString(fileNameStratix)))
+        getFileFromArtifactory(fileNameStratix, pathToFileStratix)
+        print(' --- file last modified: %s ---\n' % (getLastModificationTimeAsString(fileNameStratix)))
     else:
         fileNameStratix = os.path.basename(pathToFileStratix)
-        getImageFromLinsee(fileNameStratix, pathToFileStratix)
-        print(' --- file last modified: %s ---\n\n' % (getLastModificationTimeAsString(pathToFileStratix)))
+        getFile(fileNameStratix, pathToFileStratix)
+        print(' --- file last modified: %s ---\n' % (getLastModificationTimeAsString(pathToFileStratix)))
     return fileNameStratix
 
 #-------------------------------------------------------------------------------
@@ -183,70 +187,117 @@ def getFileStratix(pathToFileStratix, fileMatcherStratix):
 # functions to modify Stratix file with customized nahka file
 #===============================================================================
 
-def extractStratixImage(fileNameStratix, pathToDirTemp):
-    with tarfile.open(fileNameStratix, 'r') as tar:
-        tar.extractall(path = pathToDirTemp)
+def extractTarfile(pathToDir, fileName):
+    try:
+        with tarfile.open(fileName, 'r') as tar:
+            tar.extractall(path = pathToDir)
+    except (Exception) as e:
+        print("Tarfile extraction ERROR: %s " % (e))
 
 
-def copyNewNahkaImageFileToArtifacts(fileNameNahka, pathToDirTempArtifacts):
-    shutil.copy(fileNameNahka, pathToDirTempArtifacts)
-
-
-def removeOldNahkaImageFile(pathToDirTempArtifacts, fileMatcherNahka):
-    listDirTempArtifacts = os.listdir(pathToDirTempArtifacts)
+def replaceFileNahka(pathToDirTempArtifacts, fileMatcherNahka, fileNameNahka):
+    listDirTempArtifacts = []
+    try:
+        listDirTempArtifacts = os.listdir(pathToDirTempArtifacts)
+    except OSError as e:
+        print("Directory listing ERROR: %s - %s.\n" % (e.filename, e.strerror))
     for tempFileArtifacts in listDirTempArtifacts:
-        if re.match(fileMatcherNahka, tempFileArtifacts):
+        if re.search(fileMatcherNahka, tempFileArtifacts):
             try:
                 os.remove(os.path.join(pathToDirTempArtifacts, tempFileArtifacts))
             except OSError as e:
-                print("Error: %s - %s.\n" % (e.filename, e.strerror))
+                print("File remove ERROR: %s - %s.\n" % (e.filename, e.strerror))
+    try:
+        shutil.copy(fileNameNahka, pathToDirTempArtifacts)
+    except OSError as e:
+        print("File copy ERROR: %s - %s.\n" % (e.filename, e.strerror))
 
 
-def setNewfileNameNahkaInInstallerScripts(pathToDirTemp, fileMatcherInstaller, fileMatcherNahka, fileNameNahka):
-    for tempFile in os.listdir(pathToDirTemp):
+def setNewFileNameNahkaInInstallerScripts(pathToDirTemp, fileMatcherInstaller, fileMatcherNahka, fileNameNahka):
+    listDirTemp = []
+    try:
+        listDirTemp = os.listdir(pathToDirTemp)
+    except OSError as e:
+        print("Directory listing ERROR: %s - %s.\n" % (e.filename, e.strerror))
+    for tempFile in listDirTemp:
         tempFilePath = os.path.join(pathToDirTemp, tempFile)
         if os.path.isfile(tempFilePath):
-            if re.match(fileMatcherInstaller, tempFile):
+            if re.search(fileMatcherInstaller, tempFile):
                 with open(tempFilePath, 'r') as f:
                     file_content = f.read()
                     file_content = re.sub(fileMatcherNahka, fileNameNahka, file_content)
                 with open(tempFilePath, 'w') as f:
                     f.write(file_content)
+                print("%s updated with current Nahka file %s" % (tempFilePath, fileNameNahka))
 
 
-def createNewStratixImage(pathToDirTemp, fileNameStratixNew):
-    with tarfile.open(fileNameStratixNew, 'w') as tar:
-        for item in os.listdir(pathToDirTemp):
-            tar.add(os.path.join(pathToDirTemp, item), arcname = item)
-
-
-def removeTempDirectory(pathToDirTemp):
+def createTarfile(pathToDir, fileName):
     try:
-        shutil.rmtree(pathToDirTemp)
+        with tarfile.open(fileName, 'w') as tar:
+            for item in os.listdir(pathToDir):
+                tar.add(os.path.join(pathToDir, item), arcname = item)
+    except (Exception) as e:
+        print("Tarfile creation ERROR: %s " % (e))
+
+
+def removeDir(pathToDir):
+    try:
+        shutil.rmtree(pathToDir)
     except OSError as e:
-        print("Error: %s - %s\n." % (e.filename, e.strerror))
+        print("Directory remove ERROR: %s - %s.\n" % (e.filename, e.strerror))
 
 
-def calculateChecksum(fileNameStratixNew, path_to_zutil):
-    if os.path.isfile(fileNameStratixNew):
-        zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameStratixNew)).decode(sys.stdout.encoding).strip()
-        print('\nzutil output:\n%s\n' % (zutilOutput))
+def getChecksumUsingZutil(fileNameStratixTemp, path_to_zutil):
+    fileNameStratixNew = ""
+    if os.path.isfile(fileNameStratixTemp):
+        zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameStratixTemp)).decode(sys.stdout.encoding).strip()
+        #print('\nzutil output:\n%s\n' % (zutilOutput))
 
-        filenamePrepend = re.sub(r'(.*)(0x)([a-fA-F0-9]{8})(.*)', r'\1', fileNameStratixNew)
-        filenameAppend = re.sub(r'(.*)(0x)([a-fA-F0-9]{8})(.*)', r'\4', fileNameStratixNew)
+        filenamePrepend = re.sub(r'(.*)(0x)([a-fA-F0-9]{8})(.*)', r'\1', fileNameStratixTemp)
+        filenameAppend = re.sub(r'(.*)(0x)([a-fA-F0-9]{8})(.*)', r'\4', fileNameStratixTemp)
         checksumNew = re.sub(r'.*(\()(0x)([a-fA-F0-9]{8})(\))', r'\3', zutilOutput).upper()
-        fileNameNew = filenamePrepend + '0x' + checksumNew + filenameAppend
-
-        os.rename(fileNameStratixNew, fileNameNew)
-
-        if os.path.isfile(fileNameNew) and os.path.getsize(fileNameNew) > 0:
-            print('\nnew file:\n%s\n' % (fileNameNew))
-            print ('\n\n\n/============================================\\\n|                                            |\n|                                            |\n|------- FILE CREATED SUCCESSFULLY!!! -------|\n|                                            |\n|                                            |\n\\============================================/\n\n')
-        time.sleep(3)
-
+        fileNameStratixNew = filenamePrepend + '0x' + checksumNew + filenameAppend
     else:
         print('\nERROR: Could not find new stratix image file to calculate checksum\n')
-        time.sleep(3)
+    return fileNameStratixNew
+
+
+def getChecksum(fileNameStratixTemp):
+    fileNameStratixNew = ""
+    if os.path.isfile(fileNameStratixTemp):
+        f = open(fileNameStratixTemp, 'rb')
+        checksum = 1
+        buffer = f.read(1024)
+        while buffer: #len(buffer) > 0:
+            checksum = zlib.adler32(buffer, checksum)
+            buffer = f.read(1024)
+        f.close()
+
+        checksum = checksum & 0xffffffff
+        #print("%d %s" % (checksum, (hex(checksum))))
+
+        filenamePrepend = re.sub(r'(.*)(0x)([a-fA-F0-9]{8})(.*)', r'\1', fileNameStratixTemp)
+        filenameAppend = re.sub(r'(.*)(0x)([a-fA-F0-9]{8})(.*)', r'\4', fileNameStratixTemp)
+        checksumNew = re.sub(r'.*(0x)([a-fA-F0-9]{8}).*', r'\2', hex(checksum)).upper()
+        fileNameStratixNew = filenamePrepend + '0x' + checksumNew + filenameAppend
+    else:
+        print('\nERROR: Could not find new stratix image file to calculate checksum\n')
+    return fileNameStratixNew
+
+
+def renameFile(fileNameStratixTemp, fileNameStratixNew):
+    try:
+        os.rename(fileNameStratixTemp, fileNameStratixNew)
+    except OSError as e:
+        print("File rename ERROR: %s - %s.\n" % (e.filename, e.strerror))
+
+    if os.path.isfile(fileNameStratixNew) and os.path.getsize(fileNameStratixNew) > 0:
+        print('\n\n\n === new Stratix file ===\n\n%s\n' % (fileNameStratixNew))
+        print(' --- file last modified: %s ---\n' % (getLastModificationTimeAsString(fileNameStratixNew)))
+        print('\n/============================================\\\n|                                            |\n|                                            |\n|------- FILE CREATED SUCCESSFULLY!!! -------|\n|                                            |\n|                                            |\n\\============================================/\n\n')
+    else:
+        print("Something went wrong. New Stratix file not generated correctly")
+
 
 #-------------------------------------------------------------------------------
 
@@ -256,17 +307,14 @@ def calculateChecksum(fileNameStratixNew, path_to_zutil):
 #===============================================================================
 
 def main():
-#-------------------------------------------------------------------------------
-# set absolute path to your zutil or pass it as first parameter to this script
-#-------------------------------------------------------------------------------
-    path_to_zutil = 'C:\zutil\zutil.exe'
-    if len(sys.argv) == 2:
-        path_to_zutil = sys.argv[1]
+    # path_to_zutil = 'C:\zutil\zutil.exe'
+    # if len(sys.argv) == 2:
+        # path_to_zutil = sys.argv[1]
 
     pathToFileIni = r'.\tp_generator_stratix_nahka.ini'
     pathToDirTemp = r'.\SRM_temp'
     pathToDirTempArtifacts = r'.\SRM_temp\artifacts'
-    fileNameStratixNew = r'.\SRM-rfsw-image-install_z-uber-0x00000000.tar'
+    fileNameStratixTemp = r'.\SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
 
     fileMatcherNahka = r'.*(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar).*'
@@ -282,19 +330,21 @@ def main():
     fileNameStratix = getFileStratix(pathToFileStratix, fileMatcherStratix)
 
 
-    # extractStratixImage(fileNameStratix, pathToDirTemp)
-    # setNewfileNameNahkaInInstallerScripts(pathToDirTemp, fileMatcherInstaller, fileMatcherNahka, fileNameNahka)
-    # removeOldNahkaImageFile(pathToDirTempArtifacts, fileMatcherNahka)
-    # copyNewNahkaImageFileToArtifacts(fileNameNahka, pathToDirTempArtifacts)
-    # createNewStratixImage(pathToDirTemp, fileNameStratixNew)
-    # removeTempDirectory(pathToDirTemp)
+    extractTarfile(pathToDirTemp, fileNameStratix)
+    replaceFileNahka(pathToDirTempArtifacts, fileMatcherNahka, fileNameNahka)
+    setNewFileNameNahkaInInstallerScripts(pathToDirTemp, fileMatcherInstaller, fileMatcherNahka, fileNameNahka)
+    createTarfile(pathToDirTemp, fileNameStratixTemp)
 
-    # calculateChecksum(fileNameStratixNew, path_to_zutil)
+    removeDir(pathToDirTemp)
+    #fileNameStratixNew = getChecksumUsingZutil(fileNameStratixTemp, path_to_zutil)
+    fileNameStratixNew = getChecksum(fileNameStratixTemp)
 
+    renameFile(fileNameStratixTemp, fileNameStratixNew)
 
 
 
 
 if __name__ == '__main__':
     main()
+    time.sleep(3)
     sys.exit()
