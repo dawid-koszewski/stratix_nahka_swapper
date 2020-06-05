@@ -4,34 +4,44 @@
 # author:   dawid.koszewski@nokia.com
 # date:     2019.10.30
 # update:   2019.11.08
-# version:  01j
+# version:  01k
 #
 # written in Notepad++
 #
 #
 #-------------------------------------------------------------------------------
 
-# when you are having problems running this script run this command:
-# pip install wget
 
-import sys
-import re
 import os
-import time
-import subprocess
+import re
 import shutil
-
+import subprocess
+import sys
 import tarfile
+import time
 import zlib
 
+
 try:
-    import wget
+    import requests
 except ImportError as e:
     print("%s" % e)
     print("Script will now attempt to install required module: %s" % e.name)
-    input("\nPress Enter to continue...\n")
-    subprocess.run('pip install wget')
-import wget
+    pressEnterToContinue()
+    subprocess.run('pip install requests')
+import requests
+
+
+#import urllib.request
+
+# try:
+    # import wget
+# except ImportError as e:
+    # print("%s" % e)
+    # print("Script will now attempt to install required module: %s" % e.name)
+    # pressEnterToContinue()
+    # subprocess.run('pip install wget')
+# import wget
 
 
 #-------------------------------------------------------------------------------
@@ -223,31 +233,8 @@ def copy2(src, dst, *, follow_symlinks=True):
 
 
 #===============================================================================
-# custom implementation of copyfileobj from shutil LIBRARY (display copy file progress)
+# custom implementation of copyfileobj from shutil LIBRARY (enable displaying copy file progress)
 #===============================================================================
-
-
-#wget
-#100% [......................................................................] 185896960 / 185896960
-
-
-def printProgress(copied, fileSize):
-    copied = copied / 1048576
-    percent = (copied / fileSize) * 100
-    padding = len(str(int(fileSize)))
-
-    symbolDone = '='
-    symbolLeft = '-'
-    sizeTotal = 20
-    sizeDone = int((percent / 100) * sizeTotal)
-    sizeLeft = sizeTotal - sizeDone
-    progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
-
-#1. dodac sprawdzenie rozmiaru konsoli
-#2. DONE dodac sprawdzenie dlugosci stringa z rozmiarem pliku aby go przekazac jako formatowanie
-    sys.stdout.write('\r%3d%% %s %*.*dMB / %*.*dMB' % (percent, progressBar, padding, 0, copied, padding, 0, fileSize))
-    sys.stdout.flush()
-    time.sleep(0.01) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
 
 def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
     fileSize = os.stat(src).st_size / 1048576
@@ -269,6 +256,28 @@ def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
 
 
 #===============================================================================
+# function to print progress bar
+#===============================================================================
+
+def printProgress(copied, fileSize):
+    copied = copied / 1048576
+    percent = (copied / fileSize) * 100
+    padding = len(str(int(fileSize)))
+
+    symbolDone = '='
+    symbolLeft = '-'
+    sizeTotal = 20
+    sizeDone = int((percent / 100) * sizeTotal)
+    sizeLeft = sizeTotal - sizeDone
+    progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
+    sys.stdout.write('\r%3d%% %s %*.*dMB / %*.*dMB' % (percent, progressBar, padding, 0, copied, padding, 0, fileSize))
+    sys.stdout.flush()
+    time.sleep(0.01) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
+
+#-------------------------------------------------------------------------------
+
+
+#===============================================================================
 # utility functions
 #===============================================================================
 
@@ -277,13 +286,16 @@ def pressEnterToExit():
     sys.exit()
 
 
+def pressEnterToContinue():
+    input("\nPress Enter to continue...\n")
+
+
 def checkTarfileIntegrity(pathToFileInRes):
     try:
         with tarfile.open(pathToFileInRes, 'r') as tar:
             members = tar.getmembers()
     except (Exception) as e:
         print ("\nERROR: Tarfile is corrupted!!!")
-        #pressEnterToExit()
         return False
     return True
 
@@ -426,7 +438,7 @@ def loadIniFileIntoList(pathToFile):
     print("now you will be able to specify location of Nahka and Stratix files in there\n")
     print("In the first run this script will search for Nahka and Stratix files in the current working directory (%s)\n" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
     print("Every next time it will search for Nahka and Stratix files in locations defined by you in the ini file...\n")
-    input("\nPress Enter to continue...\n")
+    pressEnterToContinue()
     createNewIniFile(pathToFile)
     return []
 
@@ -501,7 +513,56 @@ def getFileFromArtifactory(pathToFile, pathToDirRes):
     try:
         #implement function to list files available under url DIR to get SRM*.tar without having to specify its full name ###################################
         #use requests library
-        wget.download(pathToFile, pathToDirRes)
+    #1.
+        #wget.download(pathToFile, pathToDirRes)
+    #2.
+        #urllib.request.urlretrieve(pathToFile, os.path.join(pathToDirRes, 'test2.tar')) #it's working
+    #3.
+        # resp = requests.get(pathToFile)
+        # with open(os.path.join(pathToDirRes, 'test3.tar')) as f:
+            # f.write(resp.content)
+        # print(resp.status_code)
+        # print(resp.headers['content-type'])
+        # print(resp.encoding)
+    #4.
+        # resp = requests.get(pathToFile, stream = True)
+        # fileSize = int(resp.headers['Content-length']) / 1048576
+        # print(fileSize)
+        # print(resp.status_code)
+        # print(resp.headers['content-type'])
+        # print(resp.encoding)
+        # with open(os.path.join(pathToDirRes, 'test4.tar'), 'wb') as f:
+            # copied = 0
+            # tmp = 0
+            # chunk_size=128
+            # for chunk in resp.iter_content(chunk_size):
+                # f.write(chunk)
+                # copied += chunk_size
+                # if copied >= (tmp + 131072):
+                    # tmp = copied
+                    # printProgress(copied, fileSize)
+            # printProgress(copied, fileSize)
+        # print()
+    #5.
+        resp = requests.get(pathToFile, stream = True)
+        fileSize = int(resp.headers['Content-length']) / 1048576
+        print(fileSize)
+        print(resp.status_code)
+        print(resp.headers['content-type'])
+        print(resp.encoding)
+        with open(os.path.join(pathToDirRes, 'test5.tar'), 'wb') as f:
+            copied = 0
+            tmp = 0
+            buffer = resp.raw.read(128)
+            copied += len(buffer)
+            while buffer:
+                f.write(buffer)
+                buffer = resp.raw.read(128)
+                copied += len(buffer)
+                if copied >= (tmp + 131072):
+                    tmp = copied
+                    printProgress(copied, fileSize)
+            printProgress(copied, fileSize)
         print()
     except Exception as e:
         print("\nFile download ERROR: %s\n" % (e))
@@ -531,13 +592,19 @@ def getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher):
 
 def isFileAvailable(pathToFile, pathIsUrl):
     if pathIsUrl:
-        #implement function to check if link is valid - do something like wget --spider #####################################################################
-        return True;
+        try:
+            response = requests.head(pathToFile)
+            return response.status_code == 200 or 300 or 301 or 302 or 303 or 307 or 308
+        except Exception as e:
+            print("%s\n\nYou probably need authentication to download that file...\n" % e)
+            return False
     else:
         return os.path.isfile(pathToFile)
 
 def isFileInResources(pathToFileInRes):
-    return os.path.isfile(pathToFileInRes)
+    if os.path.isfile(pathToFileInRes):
+        return checkTarfileIntegrity(pathToFileInRes)
+    return False
 
 def handleGettingFile(pathToFile, pathToDirRes, urlMatcher, fileMatcher):
     pathIsUrl = isPathUrl(pathToFile, urlMatcher)
@@ -555,10 +622,10 @@ def handleGettingFile(pathToFile, pathToDirRes, urlMatcher, fileMatcher):
             print("file already present in the resources folder in current working directory!")
     elif fileIsInResources:
         print("Could not find file in the specified location, but the file is present in %s\n" % (pathToFileInRes))
-        input("\nPress Enter to continue...\n")
+        pressEnterToContinue()
     else:
         print("Could not find anything! Please specify possible file locations in the ini file...\n")
-        input("\nPress Enter to exit...\n")
+        pressEnterToExit()
     return pathToFileInRes
 
 def getFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = r''):
@@ -568,7 +635,7 @@ def getFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = r''):
         pathToFileInRes = handleGettingFile(pathToFile, pathToDirRes, urlMatcher, fileMatcher)
         if not checkTarfileIntegrity(pathToFileInRes):
             print("Attempting to remove corrupted file and copy it again")
-            removeFile(pathToFileInRes)
+            #removeFile(pathToFileInRes)
         else:
             break
 
@@ -689,5 +756,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    #time.sleep(3)
-    input("\nPress Enter to exit...\n")
+    pressEnterToExit()
