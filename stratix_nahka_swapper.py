@@ -3,8 +3,8 @@
 #-------------------------------------------------------------------------------
 # author:   dawid.koszewski@nokia.com
 # date:     2019.10.30
-# update:   2019.11.08
-# version:  01k
+# update:   2019.11.11
+# version:  01l
 #
 # written in Notepad++
 #
@@ -290,14 +290,18 @@ def pressEnterToContinue():
     input("\nPress Enter to continue...\n")
 
 
-def checkTarfileIntegrity(pathToFileInRes):
+def isTarfileGood(pathToFileInRes):
     try:
         with tarfile.open(pathToFileInRes, 'r') as tar:
             members = tar.getmembers()
-    except (Exception) as e:
-        print ("\nERROR: Tarfile is corrupted!!!")
+        return True
+    except (tarfile.TarError) as e:
+        #print("\nTarfile corrupted ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
         return False
-    return True
+    except (Exception) as e:
+        #print("\nTarfile ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
+        return False
+    return False
 
 
 def extractTarfile(pathToDir, pathToFileInRes):
@@ -305,7 +309,7 @@ def extractTarfile(pathToDir, pathToFileInRes):
         with tarfile.open(pathToFileInRes, 'r') as tar:
             tar.extractall(path = pathToDir)
     except (Exception) as e:
-        print("\nTarfile extraction ERROR: %s\n" % (e))
+        print("\nTarfile extraction ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
         pressEnterToExit()
 
 
@@ -315,7 +319,7 @@ def createTarfile(pathToDir, fileName):
             for item in os.listdir(pathToDir):
                 tar.add(os.path.join(pathToDir, item), arcname = item)
     except (Exception) as e:
-        print("\nTarfile creation ERROR: %s\n" % (e))
+        print("\nTarfile creation ERROR: %s in:\n%s\n" % (e, fileName))
         pressEnterToExit()
 
 
@@ -330,7 +334,7 @@ def createDir(pathToDir):
 def removeFile2(pathToDir, fileName):
     try:
         os.remove(os.path.join(pathToDir, fileName))
-        print("\n\n%s has been successfully deleted from: %s" % (fileName, pathToDir))
+        print("\n\n%s deleted from: %s" % (fileName, pathToDir))
     except OSError as e:
         print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
 
@@ -340,7 +344,7 @@ def removeFile(pathToFile):
     fileName = os.path.basename(pathToFile)
     try:
         os.remove(pathToFile)
-        print("%s has been successfully deleted from: %s" % (fileName, pathToDir))
+        print("%s deleted from: %s" % (fileName, pathToDir))
     except OSError as e:
         print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
 
@@ -505,52 +509,12 @@ def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
 # functions to copy / download Nahka and Stratix files
 #===============================================================================
 
-def getFileNameFromLink(pathToFile, fileMatcher):
-    return re.sub(fileMatcher, r'\1\2\3', pathToFile)
-
-def getFileFromArtifactory(pathToFile, pathToDirRes):
-    print("downloading file to the resources folder in current working directory...")
+def getFileFromArtifactory(pathToFile, pathToFileInRes):
+    print("downloading file to %s" % os.path.dirname(pathToFileInRes))
     try:
-        #implement function to list files available under url DIR to get SRM*.tar without having to specify its full name ###################################
-        #use requests library
-    #1.
-        #wget.download(pathToFile, pathToDirRes)
-    #2.
-        #urllib.request.urlretrieve(pathToFile, os.path.join(pathToDirRes, 'test2.tar')) #it's working
-    #3.
-        # resp = requests.get(pathToFile)
-        # with open(os.path.join(pathToDirRes, 'test3.tar')) as f:
-            # f.write(resp.content)
-        # print(resp.status_code)
-        # print(resp.headers['content-type'])
-        # print(resp.encoding)
-    #4.
-        # resp = requests.get(pathToFile, stream = True)
-        # fileSize = int(resp.headers['Content-length']) / 1048576
-        # print(fileSize)
-        # print(resp.status_code)
-        # print(resp.headers['content-type'])
-        # print(resp.encoding)
-        # with open(os.path.join(pathToDirRes, 'test4.tar'), 'wb') as f:
-            # copied = 0
-            # tmp = 0
-            # chunk_size=128
-            # for chunk in resp.iter_content(chunk_size):
-                # f.write(chunk)
-                # copied += chunk_size
-                # if copied >= (tmp + 131072):
-                    # tmp = copied
-                    # printProgress(copied, fileSize)
-            # printProgress(copied, fileSize)
-        # print()
-    #5.
         resp = requests.get(pathToFile, stream = True)
         fileSize = int(resp.headers['Content-length']) / 1048576
-        print(fileSize)
-        print(resp.status_code)
-        print(resp.headers['content-type'])
-        print(resp.encoding)
-        with open(os.path.join(pathToDirRes, 'test5.tar'), 'wb') as f:
+        with open(pathToFileInRes, 'wb') as f:
             copied = 0
             tmp = 0
             buffer = resp.raw.read(128)
@@ -564,12 +528,14 @@ def getFileFromArtifactory(pathToFile, pathToDirRes):
                     printProgress(copied, fileSize)
             printProgress(copied, fileSize)
         print()
+        print('modified on: %s (on server)' % (resp.headers['last-modified']))
     except Exception as e:
         print("\nFile download ERROR: %s\n" % (e))
         pressEnterToExit()
 
+
 def getFileFromNetwork(pathToFile, pathToDirRes):
-    print("copying file to the resources folder in current working directory...")
+    print("copying file to %s" % (pathToDirRes))
     try:
         #shutil.copy2(pathToFile, pathToDirRes)
         copy2(pathToFile, pathToDirRes)
@@ -577,8 +543,35 @@ def getFileFromNetwork(pathToFile, pathToDirRes):
         print("\nFile copy ERROR: %s\n" % (e))
         pressEnterToExit()
 
-def isPathUrl(pathToFile, urlMatcher):
-    return re.search(urlMatcher, pathToFile)
+
+def getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes):
+    createDir(pathToDirRes)
+    if pathIsUrl:
+        getFileFromArtifactory(pathToFile, pathToFileInRes)
+    else:
+        getFileFromNetwork(pathToFile, pathToDirRes)
+
+
+def isFileInResources(pathToFileInRes):
+    return os.path.isfile(pathToFileInRes)
+
+
+def isFileAvailable(pathToFile, pathIsUrl):
+    if pathIsUrl:
+        try:
+            response = requests.head(pathToFile)
+            return response.status_code == 200 or 300 or 301 or 302 or 303 or 307 or 308
+        except Exception as e:
+            print("%s\n\nYou probably need authentication to download that file...\n" % e)
+        return False
+    else:
+        return os.path.isfile(pathToFile)
+    return False
+
+
+def getFileNameFromLink(pathToFile, fileMatcher):
+    return re.sub(fileMatcher, r'\1\2\3', pathToFile)
+
 
 def getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher):
     pathToFileInRes = ""
@@ -590,56 +583,45 @@ def getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher):
         pathToFileInRes = os.path.join(pathToDirRes, fileName)
     return pathToFileInRes
 
-def isFileAvailable(pathToFile, pathIsUrl):
-    if pathIsUrl:
-        try:
-            response = requests.head(pathToFile)
-            return response.status_code == 200 or 300 or 301 or 302 or 303 or 307 or 308
-        except Exception as e:
-            print("%s\n\nYou probably need authentication to download that file...\n" % e)
-            return False
-    else:
-        return os.path.isfile(pathToFile)
 
-def isFileInResources(pathToFileInRes):
-    if os.path.isfile(pathToFileInRes):
-        return checkTarfileIntegrity(pathToFileInRes)
-    return False
+def isPathUrl(pathToFile, urlMatcher):
+    return re.search(urlMatcher, pathToFile)
 
-def handleGettingFile(pathToFile, pathToDirRes, urlMatcher, fileMatcher):
+
+def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = r''):
     pathIsUrl = isPathUrl(pathToFile, urlMatcher)
     pathToFileInRes = getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher)
+
+    print('\n\n\
+======================' + len(name)*'=' + '\n\
+=== selected %s file ===\n\
+======================' % (name) + len(name)*'=' + '\n\n%s\n' % (pathToFile))
+
     fileIsAvailable = isFileAvailable(pathToFile, pathIsUrl)
     fileIsInResources = isFileInResources(pathToFileInRes)
+    fileIsGood = isTarfileGood(pathToFileInRes)
 
     if fileIsAvailable:
-        if not fileIsInResources:
-            if pathIsUrl:
-                getFileFromArtifactory(pathToFile, pathToDirRes)
+        if fileIsInResources:
+            if fileIsGood:
+                print("file already present in %s" % (pathToDirRes))
             else:
-                getFileFromNetwork(pathToFile, pathToDirRes)
+                print("file already present in the %s but it is corrupted - attempting to get a fresh new copy" % (pathToDirRes))
+                getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes)
         else:
-            print("file already present in the resources folder in current working directory!")
+            getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes)
     elif fileIsInResources:
-        print("Could not find file in the specified location, but the file is present in %s\n" % (pathToFileInRes))
-        pressEnterToContinue()
+        if fileIsGood:
+            print("Could not find file in the specified location, but the file is present in %s\n" % (pathToDirRes))
+            pressEnterToContinue()
+        else:
+            print("Could not find file in the specified location - the file is present in %s but it is corrupted\n" % (pathToDirRes))
+            pressEnterToExit()
     else:
         print("Could not find anything! Please specify possible file locations in the ini file...\n")
         pressEnterToExit()
-    return pathToFileInRes
 
-def getFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = r''):
-    createDir(pathToDirRes)
-    print('\n\n\n === selected %s file ===\n\n%s\n' % (name, pathToFile))
-    for x in range(0, 3):
-        pathToFileInRes = handleGettingFile(pathToFile, pathToDirRes, urlMatcher, fileMatcher)
-        if not checkTarfileIntegrity(pathToFileInRes):
-            print("Attempting to remove corrupted file and copy it again")
-            #removeFile(pathToFileInRes)
-        else:
-            break
-
-    print('\n --- file last modified: %s ---\n' % (getLastModificationTimeAsString(pathToFileInRes)))
+    print('modified on: %s\n' % (getLastModificationTimeAsString(pathToFileInRes)))
     return pathToFileInRes
 
 #-------------------------------------------------------------------------------
@@ -656,12 +638,13 @@ def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher)
     except OSError as e:
         print("\nDirectory listing ERROR: %s - %s\n" % (e.filename, e.strerror))
         pressEnterToExit()
+
     for tempFileArtifacts in listDirTempArtifacts:
         if re.search(fileMatcher, tempFileArtifacts):
             removeFile2(pathToDirTempArtifacts, tempFileArtifacts)
     try:
         shutil.copy2(pathToFileInRes, pathToDirTempArtifacts)
-        print("%s has been successfully copied to: %s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
+        print("%s copied to: %s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
     except (shutil.Error, OSError, IOError) as e:
         print("\nFile copy ERROR: %s\n" % (e))
         pressEnterToExit()
@@ -684,7 +667,7 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
                     file_content = re.sub(fileMatcher, fileName, file_content)
                 with open(tempFilePath, 'w') as f:
                     f.write(file_content)
-                print("%s has been successfully updated in installer script: %s" % (fileName, tempFilePath))
+                print("%s updated in: %s" % (fileName, tempFilePath))
 
 
 def renameStratixFile(fileNameTemp, fileNameNew):
@@ -694,17 +677,21 @@ def renameStratixFile(fileNameTemp, fileNameNew):
         print("\nFile rename ERROR: %s - %s\n" % (e.filename, e.strerror))
 
     if os.path.isfile(fileNameNew) and os.path.getsize(fileNameNew) > 0:
-        print('\n\n\n === new Stratix file ===\n\n%s' % (fileNameNew))
-        print('\n --- file last modified: %s ---\n' % (getLastModificationTimeAsString(fileNameNew)))
-        print('\
-\n/============================================\\\
-\n|                                            |\
-\n|                                            |\
-\n|------- FILE CREATED SUCCESSFULLY!!! -------|\
-\n|                                            |\
-\n|                                            |\
-\n\\============================================/\
-\n\n')
+        print('\n\n\n\
+=================' + len('Stratix')*'=' + '\n\
+=== new Stratix file ===\n\
+=================' + len('Stratix')*'=' + '\n\n%s\n' % (fileNameNew))
+
+        print('modified on: %s\n' % (getLastModificationTimeAsString(fileNameNew)))
+        # print('\
+# \n/============================================\\\
+# \n|                                            |\
+# \n|                                            |\
+# \n|------- FILE CREATED SUCCESSFULLY!!! -------|\
+# \n|                                            |\
+# \n|                                            |\
+# \n\\============================================/\
+# \n\n')
     else:
         print("\nSomething went wrong. New Stratix file not generated correctly\n")
 
@@ -737,8 +724,8 @@ def main():
     pathToFileNahka = pathsToLatestFiles.get("pathToLatestFileNahka", "")
     pathToFileStratix = pathsToLatestFiles.get("pathToLatestFileStratix", "")
 
-    pathToFileInResNahka = getFile(pathToFileNahka, pathToDirRes, 'Nahka', urlMatcher)
-    pathToFileInResStratix = getFile(pathToFileStratix, pathToDirRes, 'Stratix', urlMatcher, fileMatcherStratix)
+    pathToFileInResNahka = handleGettingFile(pathToFileNahka, pathToDirRes, 'Nahka', urlMatcher)
+    pathToFileInResStratix = handleGettingFile(pathToFileStratix, pathToDirRes, 'Stratix', urlMatcher, fileMatcherStratix)
 
 
     extractTarfile(pathToDirTemp, pathToFileInResStratix)
