@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.12.14
-# version:      02e
+# update:       2019.12.16
+# version:      02f
 #
 # written in Notepad++
 #
@@ -93,12 +93,6 @@ try:
 except (SyntaxError, Exception) as e:
     from builtins import open as bltn_open #python3 only
 
-try:
-    import zlib
-except (ImportError, Exception) as e:
-    print("\nimport zlib(e) %s\nYou can proceed but you will need to calculate checksum manually" % e)
-    pressEnterToContinue()
-
 
 def installRequests():
     try:
@@ -146,7 +140,60 @@ def printDetectedAndSupportedPythonVersion():
         print("\ndetected python version: %d.%d.%d [PROBABLY SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
     else:
         print("\ndetected python version: %d.%d.%d [NOT TESTED]\n(it is highly recommended to upgrade to 2.6.6, 2.7.4, 3.3.5, 3.8.0 or any newer)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
-    print("please do not hesitate to contact: dawid.koszewski@nokia.com")
+    print("please do not hesitate to contact: dawid.koszewski@nokia.com\n")
+
+printDetectedAndSupportedPythonVersion()
+
+#-------------------------------------------------------------------------------
+
+
+#===============================================================================
+# python implementation of zlib.adler32 library
+#===============================================================================
+
+def adler32(buffer, checksum): #probably the Fastest pure Python Adler32 in the West (FPAW)
+    sum2 = (checksum >> 16) & 0xffff;
+    adler = checksum & 0xffff;
+
+    # step = 256 #256 max for adler-=65521 version (256*255+1 = 65281 so adler modulo can be skipped)
+    # i = 0
+    buffer = bytearray(buffer)
+    for byte in buffer:
+        adler += byte
+        sum2 += adler
+        # i += 1
+        # if i>= step:
+            # # if adler >= 65521:
+                # # adler -= 65521
+            # adler %= 65521
+            # sum2 %= 65521
+            # i = 0
+    # # if adler >= 65521:
+        # # adler -= 65521
+    adler %= 65521
+    sum2 %= 65521
+
+    return (sum2 << 16) | adler
+
+
+def adler32_naive(buffer, checksum):
+    sum2 = (checksum >> 16) & 0xffff;
+    adler = checksum & 0xffff;
+    buffer = bytearray(buffer)
+    for byte in buffer:
+        adler = (adler + byte) % 65521
+        sum2 = (sum2 + adler) % 65521
+    return (sum2 << 16) | adler
+
+
+adler32_function = adler32
+
+try:
+    import zlib
+    adler32_function = zlib.adler32
+except (ImportError, Exception) as e:
+    print("\nWARNING: %s\nscript will use python implementation of adler32 algorithm..." % e)
+    adler32_function = adler32
 
 #-------------------------------------------------------------------------------
 
@@ -2915,7 +2962,7 @@ def getChecksum(pathToFile):
                     buffer = f.read(1024*1024) #default 64*1024 for linux (SLOW), 1024*1024 for windows (FAST also on linux)
                     if not buffer:
                         break
-                    checksum = zlib.adler32(buffer, checksum)
+                    checksum = adler32_function(buffer, checksum)
 
                     handleProgressBarWithinLoop(progressBarVars, buffer, fileSize)
                 printProgressBar(progressBarVars[7], fileSize, progressBarVars[8], progressBarVars[9])
@@ -2953,6 +3000,52 @@ def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher)
         pressEnterToExit()
 
 
+def modifyFileContent(pathToFile, modifier_callback):
+#------------------------------------------
+# open file
+#------------------------------------------
+    fileContent = None
+    try:
+        # if PYTHON_MAJOR >= 3:
+            # f = open(pathToFile, 'r', newline = '')
+        # else:
+            # f = open(pathToFile, 'rb')
+        f = open(pathToFile, 'r')
+        try:
+            fileContent = f.read()
+            f.close()
+
+        except (OSError, IOError) as e:
+            print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e1) %s - %s" % (e.filename, e.strerror))
+        finally:
+            f.close()
+    except (Exception) as e:
+        print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e2) %s" % (e))
+
+#------------------------------------------
+# modify file
+#------------------------------------------
+    fileContent = modifier_callback(fileContent)
+
+#------------------------------------------
+# save file
+#------------------------------------------
+    try:
+        if PYTHON_MAJOR >= 3:
+            f = open(pathToFile, 'w', newline = '')
+        else:
+            f = open(pathToFile, 'wb')
+        try:
+            f.write(fileContent)
+            f.close()
+        except (OSError, IOError) as e:
+            print("\nInstaller script writing ERROR: setNewFileNameInInstallerScripts(e3) %s - %s" % (e.filename, e.strerror))
+        finally:
+            f.close()
+    except (Exception) as e:
+        print("\nInstaller script writing ERROR: setNewFileNameInInstallerScripts(e4) %s" % (e))
+
+
 def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcherInstaller, fileMatcher):
     fileName = os.path.basename(pathToFileInRes)
     listDirTemp = listDirectory(pathToDirTemp)
@@ -2960,51 +3053,9 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
         tempFilePath = os.path.join(pathToDirTemp, tempFile)
         if os.path.isfile(tempFilePath):
             if fileMatcherInstaller.search(tempFile):
-
-            #------------------------------------------
-            # open file
-            #------------------------------------------
-                fileContent = None
-                try:
-                    # if PYTHON_MAJOR >= 3:
-                        # f = open(tempFilePath, 'r', newline = '')
-                    # else:
-                        # f = open(tempFilePath, 'rb')
-                    f = open(tempFilePath, 'r')
-                    try:
-                        fileContent = f.read()
-                        f.close()
-
-                    except (OSError, IOError) as e:
-                        print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e1) %s - %s" % (e.filename, e.strerror))
-                    finally:
-                        f.close()
-                except (Exception) as e:
-                    print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e2) %s" % (e))
-
-            #------------------------------------------
-            # modify with new nahka filename
-            #------------------------------------------
-                fileContent = fileMatcher.sub((r'\1%s\5' % (fileName)), fileContent)
-
-            #------------------------------------------
-            # save file
-            #------------------------------------------
-                try:
-                    if PYTHON_MAJOR >= 3:
-                        f = open(tempFilePath, 'w', newline = '')
-                    else:
-                        f = open(tempFilePath, 'wb')
-                    try:
-                        f.write(fileContent)
-                        f.close()
-                        print("%s\t updated in:\t%s" % (fileName, tempFilePath))
-                    except (OSError, IOError) as e:
-                        print("\nInstaller script writing ERROR: setNewFileNameInInstallerScripts(e3) %s - %s" % (e.filename, e.strerror))
-                    finally:
-                        f.close()
-                except (Exception) as e:
-                    print("\nInstaller script writing ERROR: setNewFileNameInInstallerScripts(e4) %s" % (e))
+                # modify with new nahka filename
+                modifyFileContent(tempFilePath, lambda fileContent : fileMatcher.sub((r'\1%s\5' % (fileName)), fileContent))
+                print("%s\t updated in:\t%s" % (fileName, tempFilePath))
 
 
 def renameStratixFile(fileNameTemp, fileNameNew):
@@ -3020,7 +3071,7 @@ def renameStratixFile(fileNameTemp, fileNameNew):
 
 
 #===============================================================================
-# custom implementation of copyfileobj from shutil LIBRARY (enable displaying progress bar)
+# custom implementation of copyfileobj from shutil LIBRARY (to enable displaying progress bar)
 #===============================================================================
 
 def copyfileobj(fsrc, fdst, src, length = 1024*1024): #default 64*1024 for linux
@@ -3042,7 +3093,7 @@ def copyfileobj(fsrc, fdst, src, length = 1024*1024): #default 64*1024 for linux
 
 
 #===============================================================================
-# functions to get paths to latest Nahka and Stratix files and copy / download
+# functions to get paths to latest Nahka and Stratix files and copy / download them
 #===============================================================================
 
 #-------------------------------------------------------------------------------
@@ -3099,7 +3150,7 @@ def getFileFromArtifactory(pathToFile, pathToDirRes, pathToFileInRes):
     return pathToFileInRes
 
 
-def getFileFromServer(serverAddressAndPath, pathToDirRes, imageMatcher, fileMatcher):
+def getFileFromServer(serverAddressAndPath, pathToDirRes, imageMatcher, fileMatcher, messagePrinted):
     fileName = ""
     if fileMatcher.search(serverAddressAndPath):
         fileName = fileMatcher.sub(r'\2\3\4\5', serverAddressAndPath)
@@ -3110,6 +3161,7 @@ def getFileFromServer(serverAddressAndPath, pathToDirRes, imageMatcher, fileMatc
     if not pathToDir.endswith('/'):
         pathToDir = pathToDir + '/'
     try:
+        print("\n\ngetting %s file from other server..." % (messagePrinted))
         sftp = subprocess.Popen(['sftp', '%s' % serverAddress], stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1)
         sftp.stdin.write(b'cd %s\n' % pathToDir)
         sftp.stdin.flush()
@@ -3195,7 +3247,7 @@ def getLastFileModificationTimeURL(pathToFile):
         if response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308):
             modified = response.headers['last-modified']
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-        print("Request Header ERROR: getLastFileModificationTimeURL(e3) %s\nYou probably need authentication to download that file..." % (e))
+        print("\nRequest Header ERROR: getLastFileModificationTimeURL(e3) %s\nYou probably need authentication to download that file..." % (e))
     return modified
 
 #-------------------------------------------------------------------------------
@@ -3205,7 +3257,7 @@ def handleGettingFileFromLocalNetwork(pathToFile, pathToDirRes, fileMatcher, mes
     fileName = os.path.basename(pathToFile)
     pathToFileInRes = os.path.join(pathToDirRes, fileName)
     modified = getLastFileModificationTimeLocal(pathToFile)
-    printSelectedFile(pathToFile, messagePrinted, modified)
+    printSelectedFile(pathToFile, ('selected %s file' % (messagePrinted)), modified)
     pathToFileInRes = getFile(pathToFile, pathToDirRes, pathToFileInRes, modified, getFileFromLocalNetwork)
     return pathToFileInRes
 
@@ -3214,16 +3266,15 @@ def handleGettingFileFromArtifactory(pathToFile, pathToDirRes, fileMatcher, mess
     fileName = fileMatcher.sub(r'\2\3\4\5', pathToFile)
     pathToFileInRes = os.path.join(pathToDirRes, fileName)
     modified = getLastFileModificationTimeURL(pathToFile)
-    printSelectedFile(pathToFile, messagePrinted, modified)
+    printSelectedFile(pathToFile, ('selected %s file' % (messagePrinted)), modified)
     pathToFileInRes = getFile(pathToFile, pathToDirRes, pathToFileInRes, modified, getFileFromArtifactory)
     return pathToFileInRes
 
 
 def handleGettingFileFromServer(pathToFile, pathToDirRes, imageMatcher, fileMatcher, messagePrinted):
-    print("\ngetting file from other server...")
-    pathToFileInRes = getFileFromServer(pathToFile, pathToDirRes, imageMatcher, fileMatcher) #to avoid multiple passord promts when connecting through sftp
+    pathToFileInRes = getFileFromServer(pathToFile, pathToDirRes, imageMatcher, fileMatcher, messagePrinted) #to avoid multiple passord promts when connecting through sftp
     modified = getLastFileModificationTimeLocal(pathToFileInRes)
-    printSelectedFile((pathToFile + ' --> ' + os.path.basename(pathToFileInRes)), messagePrinted, modified)
+    printSelectedFile((pathToFile + ' --> ' + os.path.basename(pathToFileInRes)), ('selected %s file' % (messagePrinted)), modified)
     return pathToFileInRes
 
 #-------------------------------------------------------------------------------
@@ -3241,7 +3292,7 @@ def getPathToLatestFileInDir(pathToDir, fileMatcher):
     return filePathsList[-1] if filePathsList else ""
 
 
-def getPathToFileUnderUrl(url, fileMatcher):
+def getPathToFileUnderUrl(url, fileMatcher, messagePrinted):
     pathToFile = ""
     try:
         import requests
@@ -3272,15 +3323,16 @@ def getPathToFileUnderUrl(url, fileMatcher):
         else:
             response.raise_for_status()
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-        print("Request Header ERROR: getPathToFileUnderUrl(e3) %s\nYou probably need authentication to download that file..." % (e))
+        print("\n\ngetting %s file from artifactory..." % (messagePrinted))
+        print("\nRequest Header ERROR: getPathToFileUnderUrl(e3) %s\nYou probably need authentication to download that file..." % (e))
     return pathToFile
 
 
-def getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLATE):
+def getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLATE, messagePrinted):
     urlPrepend, urlAppend = PATH_ARTIFACTORY_TEMPLATE.rsplit('*', 1)
     urlPrepend = urlPrepend.rstrip('*')
     url = urlPrepend + PATH + urlAppend
-    pathToFile = getPathToFileUnderUrl(url, fileMatcher)
+    pathToFile = getPathToFileUnderUrl(url, fileMatcher, messagePrinted)
     return pathToFile
 
 #-------------------------------------------------------------------------------
@@ -3297,13 +3349,13 @@ def handleGettingFile(pathToDirRes, serverMatcher, urlMatcher, imageMatcher, fil
         if fileMatcher.search(PATH):
             pathToFile = PATH
         else:
-            pathToFile = getPathToFileUnderUrl(PATH)
+            pathToFile = getPathToFileUnderUrl(PATH, fileMatcher, messagePrinted)
         pathToFileInRes = handleGettingFileFromArtifactory(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
     elif PATH.isdigit():
-        pathToFile = getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLATE)
+        pathToFile = getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLATE, messagePrinted)
         pathToFileInRes = handleGettingFileFromArtifactory(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
     elif os.path.isdir(checkIfSymlinkAndGetRelativePath(PATH)):
-        pathToFile = getPathToLatestFileInDir(PATH, fileMatcher)
+        pathToFile = getPathToLatestFileInDir(checkIfSymlinkAndGetRelativePath(PATH), fileMatcher)
         pathToFileInRes = handleGettingFileFromLocalNetwork(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
     else:
         pathToFile = checkIfSymlinkAndGetRelativePath(PATH)
@@ -3380,27 +3432,26 @@ PATH_STRATIX = .\n\
 
 
 def loadIniFileIntoList(pathToFile):
-    if os.path.isfile(pathToFile):
+    if not os.path.isfile(pathToFile):
+        createNewIniFile(pathToFile)
+        print("\n%s file has been created!!!\n" % (pathToFile))
+        print("You can find detailed information about accepted path formats in there...")
+        print("By default script will be searching for Nahka and Stratix files in the current working directory (%s)." % (os.path.dirname(os.path.realpath(sys.argv[0]))))
+        pressEnterToContinue()
+    try:
+        f = open(pathToFile, 'r')
         try:
-            f = open(pathToFile, 'r')
-            try:
-                linesList = f.readlines()
-                f.close()
-                return linesList
-            except (OSError, IOError) as e:
-                print("\nInifile loading ERROR: loadIniFileIntoList(e1) %s - %s" % (e.filename, e.strerror))
-                return []
-            finally:
-                f.close()
-        except (Exception) as e:
-            print("\nInifile loading ERROR: loadIniFileIntoList(e2) %s" % (e))
+            linesList = f.readlines()
+            f.close()
+            return linesList
+        except (OSError, IOError) as e:
+            print("\nInifile loading ERROR: loadIniFileIntoList(e1) %s - %s" % (e.filename, e.strerror))
             return []
-    createNewIniFile(pathToFile)
-    print("\n%s file has been created!!!" % (pathToFile))
-    print("\nThe script will always search for newest Nahka and Stratix files in locations defined by you in: %s" % (pathToFile))
-    print("\nBy default it will search in the current working directory (%s)" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
-    pressEnterToContinue()
-    return []
+        finally:
+            f.close()
+    except (Exception) as e:
+        print("\nInifile loading ERROR: loadIniFileIntoList(e2) %s" % (e))
+        return []
 
 
 def getPathFromLine(index, commentIndex, line, pathName):
@@ -3424,7 +3475,6 @@ def getPathsFromIniFile(pathToFileIni):
     iniFile = loadIniFileIntoList(pathToFileIni)
     if iniFile:
         for line in iniFile:
-            line = line.strip()
             commentIndex = line.find('#')
             if commentIndex == 0:
                 continue
@@ -3440,6 +3490,7 @@ def getPathsFromIniFile(pathToFileIni):
             if index >= 0 and (index < commentIndex or commentIndex < 0):
                 PATH_ARTIFACTORY_TEMPLATE = getPathFromLine(index, commentIndex, line, pathArtifactoryTemplate)
     else:
+        print("\nInifile loading ERROR: getPathsFromIniFile(e1) Script will now search for Nahka and Stratix files in the current working directory")
         PATH_NAHKA = "."
         PATH_STRATIX = "."
         PATH_ARTIFACTORY_TEMPLATE = "."
@@ -3448,6 +3499,94 @@ def getPathsFromIniFile(pathToFileIni):
     PATHS['PATH_STRATIX'] = PATH_STRATIX
     PATHS['PATH_ARTIFACTORY_TEMPLATE'] = PATH_ARTIFACTORY_TEMPLATE
     return PATHS
+
+
+def setNewPathInLine(pathName, PATH_in_ini_file, PATH_new):
+    #PATH_matcher = re.compile(r'%s' % (PATH_in_ini_file))
+    #PATH_full_matcher = re.compile(r'(.*)(%s)((?!%s).)*?(\s*?=?\s*?)(%s)(.*)' % (pathName, pathName, PATH_in_ini_file))
+    if PATH_in_ini_file:
+        #return lambda fileContent : PATH_full_matcher.sub((r'\1\2\g<3>%s\5' % (PATH_new)), fileContent)
+        return lambda fileContent : fileContent.replace(PATH_in_ini_file, PATH_new)
+
+    return lambda fileContent : fileContent + ('\n%s = %s' % (pathName, PATH_new))
+
+
+def setNewPathInIniFile(pathToFileIni, pathName, PATH_new):
+    PATH_in_ini_file = ""
+    iniFile = loadIniFileIntoList(pathToFileIni)
+    if iniFile:
+        i = -1
+        last_occurrence = -1
+        for line in iniFile:
+            i += 1
+            commentIndex = line.find('#')
+            if commentIndex == 0:
+                continue
+            index = line.find(pathName)
+            if index >= 0 and (index < commentIndex or commentIndex < 0):
+                #PATH_in_ini_file = getPathFromLine(index, commentIndex, line, pathName)
+                last_occurrence = i
+
+        if last_occurrence >=0 :
+            #iniFile[last_occurrence].replace(PATH_in_ini_file, PATH_new)
+            iniFile[last_occurrence] = '%s = %s\n' % (pathName, PATH_new)
+        else:
+            iniFile.append('\n%s = %s' % (pathName, PATH_new))
+
+        try:
+            if PYTHON_MAJOR >= 3:
+                f = open(pathToFileIni, 'w', newline = '')
+            else:
+                f = open(pathToFileIni, 'wb')
+            try:
+                f.writelines(iniFile)
+                f.close()
+            except (OSError, IOError) as e:
+                print("\nIni file writing ERROR: setNewPathInIniFile(e1) %s - %s" % (e.filename, e.strerror))
+            finally:
+                f.close()
+        except (Exception) as e:
+            print("\nIni file writing ERROR: setNewPathInIniFile(e2) %s" % (e))
+
+    else:
+        print("\nInifile loading ERROR: setNewPathInIniFile(e1)")
+
+
+
+def getUserInput(text):
+    userInput = ""
+    if PYTHON_MAJOR==2:
+        userInput = raw_input(text) #python2 only
+    else:
+        userInput = input(text) #python3 only
+    return userInput.strip()
+
+
+def askUserToProvideNewPaths(pathToFileIni, PATHS):
+    print("path formats allowed:\n\
+- local folder (for example: ./1234 - if folder is a numer it must be preceded with \"./\")\n\
+- mapped disk drive\n\
+- other linux server\n\
+- url to artifactory\n\
+- just a build number at artifactory (for example: 1234)\n\
+- dot means current working directory(for example: .)\n\
+if path doesn't contain a filename - script will automatically find the newest file in that folder\n\
+(you can find detailed examples in: %s)\n" % pathToFileIni)
+
+    print("\npaths stored in the ini file:")
+    print("PATH_NAHKA = %s" % (PATHS.get("PATH_NAHKA", "")))
+    print("PATH_STRATIX = %s" % (PATHS.get("PATH_STRATIX", "")))
+    print("\nYou can change these paths now. If you don't want to change selected PATH just press Enter...")
+
+    userInput = getUserInput("PATH_NAHKA = ")
+    if userInput:
+        PATHS['PATH_NAHKA'] = userInput
+        setNewPathInIniFile(pathToFileIni, 'PATH_NAHKA', userInput)
+
+    userInput = getUserInput("PATH_STRATIX = ")
+    if userInput:
+        PATHS['PATH_STRATIX'] = userInput
+        setNewPathInIniFile(pathToFileIni, 'PATH_STRATIX', userInput)
 
 #-------------------------------------------------------------------------------
 
@@ -3473,7 +3612,8 @@ def main():
 #----------------------------
     urlMatcher              = re.compile(r'(https://|http://|ftp://)')
     serverMatcher           = re.compile(r'(wrlin)(.*)(emea.nsn-net.net)')
-    imageMatcher            = r'*-rfsw-image-install_*'
+    imageMatcherNahka       = r'*FRM-rfsw-image-install_*'
+    imageMatcherStratix     = r'*SRM-rfsw-image-install_z-uber-0x*'
     fileMatcherNahka        = re.compile(r'(.*)(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)(.*)')
     fileMatcherStratix      = re.compile(r'(.*)(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar)(.*)')
     fileMatcherChecksum     = re.compile(r'(.*0x)([a-fA-F0-9]{1,8})(.*)')
@@ -3481,15 +3621,12 @@ def main():
 
 
 #----------------------------
-# START OF THE PROGRAM
-#----------------------------
-    printDetectedAndSupportedPythonVersion()
-
-
-#----------------------------
 # get paths from ini file
 #----------------------------
     PATHS = getPathsFromIniFile(pathToFileIni)
+
+    askUserToProvideNewPaths(pathToFileIni, PATHS)
+
     PATH_NAHKA = PATHS.get("PATH_NAHKA", "")
     PATH_STRATIX = PATHS.get("PATH_STRATIX", "")
     PATH_ARTIFACTORY_TEMPLATE = PATHS.get("PATH_ARTIFACTORY_TEMPLATE", "")
@@ -3504,8 +3641,8 @@ def main():
 #----------------------------
 # copy files to local resources
 #----------------------------
-    pathToFileInResourcesNahka = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, imageMatcher, fileMatcherNahka, PATH_ARTIFACTORY_TEMPLATE, PATH_NAHKA, 'selected Nahka file')
-    pathToFileInResourcesStratix = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, imageMatcher, fileMatcherStratix, PATH_ARTIFACTORY_TEMPLATE, PATH_STRATIX, 'selected Stratix file')
+    pathToFileInResourcesNahka = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, imageMatcherNahka, fileMatcherNahka, PATH_ARTIFACTORY_TEMPLATE, PATH_NAHKA, 'Nahka')
+    pathToFileInResourcesStratix = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, imageMatcherStratix, fileMatcherStratix, PATH_ARTIFACTORY_TEMPLATE, PATH_STRATIX, 'Stratix')
 
 
 #----------------------------
