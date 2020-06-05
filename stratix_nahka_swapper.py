@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.12.01
-# version:      02
+# update:       2019.12.02
+# version:      02a
 #
 # written in Notepad++
 #
@@ -43,6 +43,8 @@ import sys
 import tarfile
 import time
 #import zlib        #imported below in try except block
+
+#import inspect #inspect.currentframe().f_code.co_name #(python version of c++ __PRETTY_FUNCTION__)
 
 #-------------------------------------------------------------------------------
 
@@ -94,7 +96,7 @@ except (SyntaxError, Exception) as e:
 try:
     import zlib
 except (ImportError, Exception) as e:
-    print("\n%s\nYou can proceed but you will need to calculate checksum manually" % e)
+    print("\nimport zlib(e) %s\nYou can proceed but you will need to calculate checksum manually" % e)
     pressEnterToContinue()
 
 
@@ -105,19 +107,19 @@ def installRequests():
         print("Please wait for up to 15 seconds...")
         subprocess.check_call("pip install requests --retries 0 --timeout 3")
     except (subprocess.CalledProcessError, Exception) as e:
-        print("\n%s\n" % e)
+        print("\ninstallRequests(e1) %s\n" % e)
         try:
             print("pip install requests --proxy defra1c-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
             print("Please wait for up to 15 seconds...")
             subprocess.check_call("pip install requests --proxy defra1c-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
         except (subprocess.CalledProcessError, Exception) as e:
-            print("\n%s\n" % e)
+            print("\ninstallRequests(e2) %s\n" % e)
             try:
                 print("pip install requests --proxy fihel1d-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
                 print("Please wait for up to 15 seconds...")
                 subprocess.check_call("pip install requests --proxy fihel1d-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
             except (subprocess.CalledProcessError, Exception) as e:
-                print("\n%s\n" % e)
+                print("\ninstallRequests(e3) %s\n" % e)
                 pass
     pressEnterToContinue()
 
@@ -207,17 +209,17 @@ def copyfile(src, dst):
                 copyfileobj(fsrc, fdst, src)
                 fdst.close()
             except (OSError, IOError) as e:
-                print("\nFile copy ERROR: %s - %s" % (e.filename, e.strerror))
+                print("\nFile copy ERROR: copyfile(e1) %s - %s" % (e.filename, e.strerror))
                 pressEnterToExit()
             finally:
                 fdst.close()
                 fsrc.close()
         except (Exception) as e:
-            print("\nFile copy ERROR: %s - %s" % (e))
+            print("\nFile copy ERROR: copyfile(e2) %s" % (e))
             pressEnterToExit()
         fsrc.close()
     except (Exception) as e:
-        print("\nFile copy ERROR: %s - %s" % (e))
+        print("\nFile copy ERROR: copyfile(e3) %s" % (e))
         pressEnterToExit()
 
 
@@ -2477,12 +2479,12 @@ def isTarfileGood(pathToFileInRes):
             return True
         #except (tarfile.TarError) as e:
         except (TarError) as e: # using local copy of tarfile library
-            #print("\nTarfile corrupted ERROR: %s in:\n%s" % (e, pathToFileInRes))
+            #print("\nTarfile corrupted ERROR: isTarfileGood(e1) %s in:\n%s" % (e, pathToFileInRes))
             return False
         finally:
             tar.close()
     except (Exception) as e:
-        #print("\nTarfile ERROR: %s in:\n%s" % (e, pathToFileInRes))
+        #print("\nTarfile ERROR: isTarfileGood(e2) %s in:\n%s" % (e, pathToFileInRes))
         return False
 
 
@@ -2506,12 +2508,12 @@ def extractTarfile(pathToDir, pathToFileInRes):
 
             tar.close()
         except (tarfile.TarError) as e:
-            print("\nTarfile extraction ERROR: %s in:\n%s" % (e, pathToFileInRes))
+            print("\nTarfile extraction ERROR: extractTarfile(e1) %s in:\n%s" % (e, pathToFileInRes))
             pressEnterToExit()
         finally:
             tar.close()
     except (Exception) as e:
-        print("\nTarfile extraction ERROR: %s in:\n%s" % (e, pathToFileInRes))
+        print("\nTarfile extraction ERROR: extractTarfile(e2) %s in:\n%s" % (e, pathToFileInRes))
         pressEnterToExit()
 
 
@@ -2537,20 +2539,20 @@ def createTarfile(pathToDir, fileName):
                             tar.addfile(tarinfo, fileobj = f)
                             f.close()
                         except (OSError, IOError) as e:
-                            print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
+                            print("\nTarfile creation ERROR: createTarfile(e1) %s in:\n%s" % (e, fileName))
                         finally:
                             f.close()
                     except (Exception) as e:
-                        print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
+                        print("\nTarfile creation ERROR: createTarfile(e2) %s in:\n%s" % (e, fileName))
 
             tar.close()
         except (tarfile.TarError) as e:
-            print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
+            print("\nTarfile creation ERROR: createTarfile(e3) %s in:\n%s" % (e, fileName))
             pressEnterToExit()
         finally:
             tar.close()
     except (Exception) as e:
-        print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
+        print("\nTarfile creation ERROR: createTarfile(e4) %s in:\n%s" % (e, fileName))
         pressEnterToExit()
 
 
@@ -2559,9 +2561,9 @@ def createDir(pathToDir):
         try:
             os.mkdir(pathToDir)
         except (OSError) as e:
-            print("\nDirectory creation ERROR: %s - %s" % (e.filename, e.strerror))
+            print("\nDirectory creation ERROR: createDir(e1) %s - %s" % (e.filename, e.strerror))
         except (Exception) as e:
-            print("\nDirectory creation ERROR: %s" % (e))
+            print("\nDirectory creation ERROR: createDir(e2) %s" % (e))
 
 
 def removeDir(pathToDir):
@@ -2569,25 +2571,25 @@ def removeDir(pathToDir):
         try:
             shutil.rmtree(pathToDir)
         except (shutil.Error, OSError, IOError, Exception) as e:
-            print("\nDirectory removal ERROR: %s" % (e))
+            print("\nDirectory removal ERROR: removeDir(e) %s" % (e))
 
 
 def moveFile(pathFrom, pathTo):
     try:
         shutil.move(pathFrom, pathTo)
     except (OSError) as e:
-        print("\nFile move ERROR: %s - %s" % (e.filename, e.strerror))
+        print("\nFile move ERROR: moveFile(e1) %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
-        print("\nFile move ERROR: %s" % (e))
+        print("\nFile move ERROR: moveFile(e2) %s" % (e))
 
 
 def renameFile(fileNameOld, fileNameNew):
     try:
         os.rename(fileNameOld, fileNameNew)
     except (OSError) as e:
-        print("\nFile rename ERROR: %s - %s" % (e.filename, e.strerror))
+        print("\nFile rename ERROR: renameFile(e1) %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
-        print("\nFile rename ERROR: %s" % (e))
+        print("\nFile rename ERROR: renameFile(e2) %s" % (e))
 
 
 def removeFile2(pathToDir, fileName):
@@ -2595,9 +2597,9 @@ def removeFile2(pathToDir, fileName):
         os.remove(os.path.join(pathToDir, fileName))
         print("\n%s\t deleted from:\t%s" % (fileName, pathToDir))
     except (OSError) as e:
-        print("\nFile remove ERROR: %s - %s" % (e.filename, e.strerror))
+        print("\nFile remove ERROR: removeFile2(e1) %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
-        print("\nFile remove ERROR: %s" % (e))
+        print("\nFile remove ERROR: removeFile2(e2) %s" % (e))
 
 
 def removeFile(pathToFile):
@@ -2607,9 +2609,9 @@ def removeFile(pathToFile):
         os.remove(pathToFile)
         print("%s\t deleted from:\t%s" % (fileName, pathToDir))
     except (OSError) as e:
-        print("\nFile remove ERROR: %s - %s" % (e.filename, e.strerror))
+        print("\nFile remove ERROR: removeFile(e1) %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
-        print("\nFile remove ERROR: %s" % (e))
+        print("\nFile remove ERROR: removeFile(e2) %s" % (e))
 
 
 def listDirectory(pathToDir):
@@ -2617,10 +2619,10 @@ def listDirectory(pathToDir):
     try:
         listDir = os.listdir(pathToDir)
     except (OSError) as e:
-        print("\nDirectory listing ERROR: %s - %s" % (e.filename, e.strerror))
+        print("\nDirectory listing ERROR: listDirectory(e1) %s - %s" % (e.filename, e.strerror))
         pressEnterToExit()
     except (Exception) as e:
-        print("\nDirectory listing ERROR: %s" % (e))
+        print("\nDirectory listing ERROR: listDirectory(e2) %s" % (e))
         pressEnterToExit()
     return listDir
 
@@ -2652,7 +2654,7 @@ def getLastModificationTime(pathToFile):
     try:
         secondsSinceEpoch = os.path.getmtime(pathToFile)
     except (OSError) as e:
-        print("\nGetting file info ERROR: %s - %s" % (e.filename, e.strerror))
+        print("\nGetting file info ERROR: getLastModificationTime(e) %s - %s" % (e.filename, e.strerror))
     return secondsSinceEpoch
 
 
@@ -2665,7 +2667,7 @@ def getFileSize(pathToFile):
     try:
         fileSize = os.stat(pathToFile).st_size
     except (OSError, IOError, Exception) as e:
-        print("\nGetting file info ERROR: %s" % (e))
+        print("\nGetting file info ERROR: getFileSize(e) %s" % (e))
     if fileSize <= 0:
         fileSize = 1
     return fileSize
@@ -2678,112 +2680,123 @@ def getFileSize(pathToFile):
 #===============================================================================
 
 def getUnit(variable):
-    units = ['kB', 'MB', 'GB', 'TB'] #Decimal Prefixes - The SI standard http://wolfprojects.altervista.org/articles/binary-and-decimal-prefixes/
-    variableUnit = ' B'
-    for unit in units:
-        if variable >= 1000:
-            variable /= 1000
-            variableUnit = unit
-        else:
-            break
-    #which translates to:
-    # i = 0
-    # while variable >= 1000 and i < len(units):
-        # variable /= 1000
-        # variableUnit = units[i] #"damn I miss array[i++] style syntax" - Dawid Koszewski, AD 2019
-        # i += 1
+    try:
+        units = ['kB', 'MB', 'GB', 'TB'] #Decimal Prefixes - The SI standard http://wolfprojects.altervista.org/articles/binary-and-decimal-prefixes/
+        variableUnit = ' B'
+        for unit in units:
+            if variable >= 1000:
+                variable /= 1000
+                variableUnit = unit
+            else:
+                break
+        #which translates to:
+        # i = 0
+        # while variable >= 1000 and i < len(units):
+            # variable /= 1000
+            # variableUnit = units[i] #"damn I miss array[i++] style syntax" - Dawid Koszewski, AD 2019
+            # i += 1
+    except (Exception) as e:
+        print("\nProgress bar ERROR: getUnit(e) %s" % (e))
     return variable, variableUnit
 
 
 def printProgressBar(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 1048576.0):
-    percent = (copied / (fileSize * 1.0)) # multiplication by 1.0 needed for python 2
-    if percent > 1.0:
-        percent = 1.0
-    dataLeft = (fileSize - copied) #Bytes
-    timeLeftSeconds = (dataLeft / speedAverage) #Seconds
-    timeLeftHours = (timeLeftSeconds / 3600)
-    timeLeftSeconds = (timeLeftSeconds % 3600)
-    timeLeftMinutes = (timeLeftSeconds / 60)
-    timeLeftSeconds = (timeLeftSeconds % 60)
+    try:
+        percent = (copied / (fileSize * 1.0)) # multiplication by 1.0 needed for python 2
+        if percent > 1.0:
+            percent = 1.0
+        dataLeft = (fileSize - copied) #Bytes
+        timeLeftSeconds = (dataLeft / speedAverage) #Seconds
+        timeLeftHours = (timeLeftSeconds / 3600)
+        timeLeftSeconds = (timeLeftSeconds % 3600)
+        timeLeftMinutes = (timeLeftSeconds / 60)
+        timeLeftSeconds = (timeLeftSeconds % 60)
 
-    #padding = len(str(int(fileSize)))
-    copied, copiedUnit = getUnit(copied)
-    fileSize, fileSizeUnit = getUnit(fileSize)
-    speedCurrent, speedCurrentUnit = getUnit(speedCurrent)
+        #padding = len(str(int(fileSize)))
+        copied, copiedUnit = getUnit(copied)
+        fileSize, fileSizeUnit = getUnit(fileSize)
+        speedCurrent, speedCurrentUnit = getUnit(speedCurrent)
 
-    symbolDone = '='
-    symbolLeft = '-'
-    sizeTotal = 20
-    sizeDone = int(percent * sizeTotal)
+        symbolDone = '='
+        symbolLeft = '-'
+        sizeTotal = 20
+        sizeDone = int(percent * sizeTotal)
 
-    sizeLeft = sizeTotal - sizeDone
-    progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
-    sys.stdout.write('\r%3d%% %s [%3.1d%s/%3.1d%s]  [%6.2f%s/s] %3.1dh%2.2dm%2.2ds' % (percent*100, progressBar, copied, copiedUnit, fileSize, fileSizeUnit, speedCurrent, speedCurrentUnit, timeLeftHours, timeLeftMinutes, timeLeftSeconds))
-    sys.stdout.flush()
-    #time.sleep(0.05) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
+        sizeLeft = sizeTotal - sizeDone
+        progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
+        sys.stdout.write('\r%3d%% %s [%3.1d%s/%3.1d%s]  [%6.2f%s/s] %3.1dh%2.2dm%2.2ds' % (percent*100, progressBar, copied, copiedUnit, fileSize, fileSizeUnit, speedCurrent, speedCurrentUnit, timeLeftHours, timeLeftMinutes, timeLeftSeconds))
+        sys.stdout.flush()
+        #time.sleep(0.05) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
+    except (Exception) as e:
+        print("\nProgress bar ERROR: printProgressBar(e) %s" % (e))
 
 
 def handleProgressBarWithinLoop(vars, buffer, fileSize):
-    # timeNow = time.time()
-    # timeNowData += len(buffer)
-# #update Current Speed
-    # if timeNow >= (timeMark + time_step):
-        # timeDiff = timeNow - timeMark
-        # if timeDiff == 0:
-            # timeDiff = 0.1
-        # dataDiff = timeNowData - timeMarkData
-        # timeMark = timeNow
-        # timeMarkData = timeNowData
-        # speedCurrent = (dataDiff / timeDiff) #Bytes per second
-# #update Average Speed and print progress
-    # if timeNowData >= (dataMark + data_step):
-        # timeDiff = timeNow - timeStarted
-        # if timeDiff == 0:
-            # timeDiff = 0.1
-        # dataMark = timeNowData
-        # speedAverage = (timeNowData / timeDiff) #Bytes per second
-# #print progress
-        # printProgressBar(timeNowData, fileSize, speedCurrent, speedAverage)
+    try:
+        # timeNow = time.time()
+        # timeNowData += len(buffer)
+    # #update Current Speed
+        # if timeNow >= (timeMark + time_step):
+            # timeDiff = timeNow - timeMark
+            # if timeDiff == 0:
+                # timeDiff = 0.1
+            # dataDiff = timeNowData - timeMarkData
+            # timeMark = timeNow
+            # timeMarkData = timeNowData
+            # speedCurrent = (dataDiff / timeDiff) #Bytes per second
+    # #update Average Speed and print progress
+        # if timeNowData >= (dataMark + data_step):
+            # timeDiff = timeNow - timeStarted
+            # if timeDiff == 0:
+                # timeDiff = 0.1
+            # dataMark = timeNowData
+            # speedAverage = (timeNowData / timeDiff) #Bytes per second
+    # #print progress
+            # printProgressBar(timeNowData, fileSize, speedCurrent, speedAverage)
 
-# it would be more readible to unpack a list, do calculations, and pack the list again (assign data)
+    # it would be more readible to unpack a list, do calculations, and pack the list again (assign data)
 
-    vars['timeNow'] = time.time()
-    vars['timeNowData'] += len(buffer)
-#update Current Speed
-    if vars['timeNow'] >= (vars['timeMark'] + vars['time_step']):
-        vars['timeDiff'] = vars['timeNow'] - vars['timeMark']
-        if vars['timeDiff'] == 0:
-            vars['timeDiff'] = 0.1
-        vars['dataDiff'] = vars['timeNowData'] - vars['timeMarkData']
-        vars['timeMark'] = vars['timeNow']
-        vars['timeMarkData'] = vars['timeNowData']
-        vars['speedCurrent'] = (vars['dataDiff'] / vars['timeDiff']) #Bytes per second
-#update Average Speed and print progress
-    if vars['timeNowData'] >= (vars['dataMark'] + vars['data_step']):
-        vars['timeDiff'] = vars['timeNow'] - vars['timeStarted']
-        if vars['timeDiff'] == 0:
-            vars['timeDiff'] = 0.1
-        vars['dataMark'] = vars['timeNowData']
-        vars['speedAverage'] = (vars['timeNowData'] / vars['timeDiff']) #Bytes per second
-#print progress
-        printProgressBar(vars['timeNowData'], fileSize, vars['speedCurrent'], vars['speedAverage'])
+        vars['timeNow'] = time.time()
+        vars['timeNowData'] += len(buffer)
+    #update Current Speed
+        if vars['timeNow'] >= (vars['timeMark'] + vars['time_step']):
+            vars['timeDiff'] = vars['timeNow'] - vars['timeMark']
+            if vars['timeDiff'] == 0:
+                vars['timeDiff'] = 0.1
+            vars['dataDiff'] = vars['timeNowData'] - vars['timeMarkData']
+            vars['timeMark'] = vars['timeNow']
+            vars['timeMarkData'] = vars['timeNowData']
+            vars['speedCurrent'] = (vars['dataDiff'] / vars['timeDiff']) #Bytes per second
+    #update Average Speed and print progress
+        if vars['timeNowData'] >= (vars['dataMark'] + vars['data_step']):
+            vars['timeDiff'] = vars['timeNow'] - vars['timeStarted']
+            if vars['timeDiff'] == 0:
+                vars['timeDiff'] = 0.1
+            vars['dataMark'] = vars['timeNowData']
+            vars['speedAverage'] = (vars['timeNowData'] / vars['timeDiff']) #Bytes per second
+    #print progress
+    except (Exception) as e:
+        print("\nProgress bar ERROR: handleProgressBarWithinLoop(e) %s" % (e))
+    printProgressBar(vars['timeNowData'], fileSize, vars['speedCurrent'], vars['speedAverage'])
 
 
 def initProgressBarVariables():
-    progressBarVars = {}
+    try:
+        progressBarVars = {}
 
-    progressBarVars['timeStarted'] = time.time()
-    progressBarVars['data_step'] = 131072
-    progressBarVars['dataMark'] = 0
+        progressBarVars['timeStarted'] = time.time()
+        progressBarVars['data_step'] = 131072
+        progressBarVars['dataMark'] = 0
 
-    progressBarVars['time_step'] = 1.0
-    progressBarVars['timeMark'] = time.time()
-    progressBarVars['timeMarkData'] = 0.0
-    progressBarVars['timeNow'] = 0.0
-    progressBarVars['timeNowData'] = 0.0
-    progressBarVars['speedCurrent'] = 1048576.0
-    progressBarVars['speedAverage'] = 1048576.0
-
+        progressBarVars['time_step'] = 1.0
+        progressBarVars['timeMark'] = time.time()
+        progressBarVars['timeMarkData'] = 0.0
+        progressBarVars['timeNow'] = 0.0
+        progressBarVars['timeNowData'] = 0.0
+        progressBarVars['speedCurrent'] = 1048576.0
+        progressBarVars['speedAverage'] = 1048576.0
+    except (Exception) as e:
+        print("\nProgress bar ERROR: initProgressBarVariables(e) %s" % (e))
     return progressBarVars
 
 #-------------------------------------------------------------------------------
@@ -2824,13 +2837,13 @@ def getChecksum(fileNameTemp, fileMatcher):
                 checksumFormatted = '0x' + ((checksumHex.zfill(8)).upper())
                 fileNameNew = fileNamePrepend + checksumFormatted + fileNameAppend
             except (OSError, IOError) as e:
-                print("\nCalculate checksum ERROR: %s - %s" % (e.filename, e.strerror))
+                print("\nCalculate checksum ERROR: getChecksum(e1) %s - %s" % (e.filename, e.strerror))
             finally:
                 f.close()
         except (Exception) as e:
-            print ("\nCalculate checksum ERROR: %s" % (e))
+            print ("\nCalculate checksum ERROR: getChecksum(e2) %s" % (e))
     else:
-        print('\nERROR: Could not find new stratix image file to calculate checksum')
+        print('\nERROR: getChecksum(e3) Could not find new stratix image file to calculate checksum')
     return fileNameNew
 
 #-------------------------------------------------------------------------------
@@ -2849,7 +2862,7 @@ def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher)
         shutil.copy2(pathToFileInRes, pathToDirTempArtifacts)
         print("%s\t copied to:\t%s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
     except (shutil.Error, OSError, IOError, Exception) as e:
-        print("\nFile copy ERROR: %s" % (e))
+        print("\nFile copy ERROR: replaceFileInArtifacts(e) %s" % (e))
         pressEnterToExit()
 
 
@@ -2871,11 +2884,11 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
                         f.close()
                         fileContent = fileMatcher.sub((r'\1%s\5' % (fileName)), fileContent)
                     except (OSError, IOError) as e:
-                        print("\nInstaller script reading ERROR: %s - %s" % (e.filename, e.strerror))
+                        print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e1) %s - %s" % (e.filename, e.strerror))
                     finally:
                         f.close()
                 except (Exception) as e:
-                    print("\nInstaller script reading ERROR: %s" % (e))
+                    print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e2) %s" % (e))
                 try:
                     if PYTHON_MAJOR >= 3:
                         f = open(tempFilePath, 'w', newline = '')
@@ -2886,11 +2899,11 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
                         f.close()
                         print("%s\t updated in:\t%s" % (fileName, tempFilePath))
                     except (OSError, IOError) as e:
-                        print("\nInstaller script writing ERROR: %s - %s" % (e.filename, e.strerror))
+                        print("\nInstaller script writing ERROR: setNewFileNameInInstallerScripts(e3) %s - %s" % (e.filename, e.strerror))
                     finally:
                         f.close()
                 except (Exception) as e:
-                    print("\nInstaller script writing ERROR: %s" % (e))
+                    print("\nInstaller script writing ERROR: setNewFileNameInInstallerScripts(e4) %s" % (e))
 
 
 def renameStratixFile(fileNameTemp, fileNameNew):
@@ -2940,7 +2953,7 @@ def getFileFromLocalNetwork(pathToFile, pathToDirRes, pathToFileInRes):
         #shutil.copy2(pathToFile, pathToDirRes)
         copy2(pathToFile, pathToFileInRes)
     except (shutil.Error, OSError, IOError, Exception) as e:
-        print("\nFile copy ERROR: %s" % (e))
+        print("\nFile copy ERROR: getFileFromLocalNetwork(e) %s" % (e))
         pressEnterToExit()
     return pathToFileInRes
 
@@ -2972,15 +2985,15 @@ def getFileFromArtifactory(pathToFile, pathToDirRes, pathToFileInRes):
 
                 f.close()
             except (OSError, IOError) as e:
-                print("\nFile download ERROR: %s - %s" % (e.filename, e.strerror))
+                print("\nFile download ERROR: getFileFromArtifactory(e1) %s - %s" % (e.filename, e.strerror))
                 pressEnterToExit()
             finally:
                 f.close()
         except (Exception) as e:
-            print("\nFile download ERROR: %s" % (e))
+            print("\nFile download ERROR: getFileFromArtifactory(e2) %s" % (e))
             pressEnterToExit()
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-        print("\nFile download ERROR: %s" % (e))
+        print("\nFile download ERROR: getFileFromArtifactory(e3) %s" % (e))
         pressEnterToExit()
     return pathToFileInRes
 
@@ -3012,13 +3025,13 @@ def getFileFromServer(serverAddressAndPath, pathToDirRes, fileMatcher):
         sftp.stdin.close()
         sftp.stdout.close()
     except (Exception) as e:
-        print("\nFile download through sftp ERROR: %s" % (e))
+        print("\nFile download through sftp ERROR: getFileFromServer(e1) %s" % (e))
         pressEnterToExit()
     if os.path.isfile(fileName) and os.path.getsize(fileName) > 0:
         pathToFileInRes = os.path.join(pathToDirRes, fileName)
         moveFile(fileName, pathToFileInRes)
     else:
-        print("\nFile download ERROR: %s" % (serverAddress + ':' + pathToDir + fileName))
+        print("\nFile download ERROR: getFileFromServer(e2) %s" % (serverAddress + ':' + pathToDir + fileName))
         pressEnterToExit()
     return pathToFileInRes
 
@@ -3066,14 +3079,14 @@ def getLastFileModificationTimeURL(pathToFile):
     try:
         import requests
     except (ImportError, Exception) as e:
-        print("\n%s" % (e))
+        print("\ngetLastFileModificationTimeURL(e1) %s" % (e))
         print("Script will now attempt to install required module")
         pressEnterToContinue()
         installRequests()
     try:
         import requests
     except (ImportError, Exception) as e:
-        print("\n%s\nCould not get requests module from pypi.org" % (e))
+        print("\ngetLastFileModificationTimeURL(e2) %s\nCould not get requests module from pypi.org" % (e))
         print("If you need to get Stratix or Nahka file from the web you will need to manually download it to the local directory (and add path to it in the ini file)\n")
         pressEnterToExit()
     try:
@@ -3081,7 +3094,7 @@ def getLastFileModificationTimeURL(pathToFile):
         if response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308):
             modified = response.headers['last-modified']
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-        print("Request Header ERROR: %s\nYou probably need authentication to download that file..." % (e))
+        print("Request Header ERROR: getLastFileModificationTimeURL(e3) %s\nYou probably need authentication to download that file..." % (e))
     return modified
 
 #-------------------------------------------------------------------------------
@@ -3131,14 +3144,14 @@ def getPathToFileUnderUrl(url, fileMatcher):
     try:
         import requests
     except (ImportError, Exception) as e:
-        print("\n%s" % (e))
+        print("\ngetPathToFileUnderUrl(e1) %s" % (e))
         print("Script will now attempt to install required module")
         pressEnterToContinue()
         installRequests()
     try:
         import requests
     except (ImportError, Exception) as e:
-        print("\n%s\nCould not get requests module from pypi.org" % (e))
+        print("\ngetPathToFileUnderUrl(e2) %s\nCould not get requests module from pypi.org" % (e))
         print("If you need to get Stratix or Nahka file from the web you will need to manually download it to the local directory (and add path to it in the ini file)\n")
         pressEnterToExit()
     try:
@@ -3157,7 +3170,7 @@ def getPathToFileUnderUrl(url, fileMatcher):
         else:
             response.raise_for_status()
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-        print("Request Header ERROR: %s\nYou probably need authentication to download that file..." % (e))
+        print("Request Header ERROR: getPathToFileUnderUrl(e3) %s\nYou probably need authentication to download that file..." % (e))
     return pathToFile
 
 
@@ -3186,11 +3199,11 @@ def handleGettingFile(pathToDirRes, serverMatcher, urlMatcher, fileMatcher, PATH
     elif PATH.isdigit():
         pathToFile = getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLATE)
         pathToFileInRes = handleGettingFileFromArtifactory(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
-    elif os.path.isfile(PATH):
-        pathToFile = PATH
-        pathToFileInRes = handleGettingFileFromLocalNetwork(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
     elif os.path.isdir(PATH):
         pathToFile = getPathToLatestFileInDir(PATH, fileMatcher)
+        pathToFileInRes = handleGettingFileFromLocalNetwork(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
+    else:
+        pathToFile = PATH
         pathToFileInRes = handleGettingFileFromLocalNetwork(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
     return pathToFileInRes
 
@@ -3258,11 +3271,11 @@ PATH_STRATIX = .\n\
 ")
             f.close()
         except (OSError, IOError) as e:
-            print("\nInifile creation ERROR: %s - %s" % (e.filename, e.strerror))
+            print("\nInifile creation ERROR: createNewIniFile(e1) %s - %s" % (e.filename, e.strerror))
         finally:
             f.close()
     except (Exception) as e:
-        print("\nInifile creation ERROR: %s" % (e))
+        print("\nInifile creation ERROR: createNewIniFile(e2) %s" % (e))
 
 
 def loadIniFileIntoList(pathToFile):
@@ -3274,12 +3287,12 @@ def loadIniFileIntoList(pathToFile):
                 f.close()
                 return linesList
             except (OSError, IOError) as e:
-                print("\nInifile loading ERROR: %s - %s" % (e.filename, e.strerror))
+                print("\nInifile loading ERROR: loadIniFileIntoList(e1) %s - %s" % (e.filename, e.strerror))
                 return []
             finally:
                 f.close()
         except (Exception) as e:
-            print("\nInifile loading ERROR: %s" % (e))
+            print("\nInifile loading ERROR: loadIniFileIntoList(e2) %s" % (e))
             return []
     createNewIniFile(pathToFile)
     print("\n%s file has been created!!!" % (pathToFile))
