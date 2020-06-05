@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.12.04
-# version:      02d
+# update:       2019.12.14
+# version:      02e
 #
 # written in Notepad++
 #
@@ -135,18 +135,18 @@ PYTHON_MINOR = sys.version_info[1]
 PYTHON_PATCH = sys.version_info[2]
 
 def printDetectedAndSupportedPythonVersion():
-    print("please do not hesitate to contact: dawid.koszewski@nokia.com")
     if((PYTHON_MAJOR == 2 and PYTHON_MINOR == 6 and PYTHON_PATCH >= 6)
     or (PYTHON_MAJOR == 2 and PYTHON_MINOR == 7 and PYTHON_PATCH >= 4)
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 3 and PYTHON_PATCH >= 5)
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 4 and PYTHON_PATCH >= 5)
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 5 and PYTHON_PATCH >= 2)
     or (PYTHON_MAJOR == 3 and PYTHON_MINOR >= 6)):
-        print("\ndetected python version: %d.%d.%d [SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)\n" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+        print("\ndetected python version: %d.%d.%d [SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
     elif (PYTHON_MAJOR >= 4):
-        print("\ndetected python version: %d.%d.%d [PROBABLY SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)\n" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+        print("\ndetected python version: %d.%d.%d [PROBABLY SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
     else:
-        print("\ndetected python version: %d.%d.%d [NOT TESTED]\n(it is highly recommended to upgrade to 2.6.6, 2.7.4, 3.3.5, 3.8.0 or any newer)\n" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+        print("\ndetected python version: %d.%d.%d [NOT TESTED]\n(it is highly recommended to upgrade to 2.6.6, 2.7.4, 3.3.5, 3.8.0 or any newer)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+    print("please do not hesitate to contact: dawid.koszewski@nokia.com")
 
 #-------------------------------------------------------------------------------
 
@@ -2584,9 +2584,9 @@ def moveFile(pathFrom, pathTo):
         print("\nFile move ERROR: moveFile(e2) %s" % (e))
 
 
-def renameFile(fileNameOld, fileNameNew):
+def renameFile(pathToFileOld, pathToFileNew):
     try:
-        os.rename(fileNameOld, fileNameNew)
+        os.rename(pathToFileOld, pathToFileNew)
     except (OSError) as e:
         print("\nFile rename ERROR: renameFile(e1) %s - %s" % (e.filename, e.strerror))
         pressEnterToExit()
@@ -2620,6 +2620,7 @@ def removeFile(pathToFile):
 def listDirectory(pathToDir):
     listDir = []
     try:
+        pathToDir = os.path.normpath(pathToDir)
         listDir = os.listdir(pathToDir)
     except (OSError) as e:
         print("\nDirectory listing ERROR: listDirectory(e1) %s - %s" % (e.filename, e.strerror))
@@ -2675,6 +2676,19 @@ def getFileSize(pathToFile):
         fileSize = 1
     return fileSize
 
+
+def checkIfSymlinkAndGetRelativePath(pathToFile):
+    if os.path.islink(pathToFile):
+        pathtoDir = os.path.dirname(pathToFile)
+        pathInSymlink = os.readlink(pathToFile)
+        pathToFile = os.path.normpath(os.path.join(pathtoDir, pathInSymlink))
+#### OR simply:
+        #pathToFile = os.path.realpath(pathToFile)
+
+        if not os.path.isfile(pathToFile):
+            print("file that is being pointed to by symlink does not exist anymore: %s" % pathFromSymlink)
+    return pathToFile
+
 #-------------------------------------------------------------------------------
 
 
@@ -2703,7 +2717,7 @@ def getUnit(variable):
     return variable, variableUnit
 
 
-def printProgressBar(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 1048576.0):
+def printProgressBar(copied, fileSize, speedCurrent = 1000000.0, speedAverage = 1000000.0):
     try:
         percent = (copied / (fileSize * 1.0)) # multiplication by 1.0 needed for python 2
         if percent > 1.0:
@@ -2838,7 +2852,7 @@ def initProgressBarVariables():
         progressBarVars = [1.0] * 10
 
         timeStarted = time.time()
-        data_step = 131072
+        data_step = 256*1024
         dataMark = 0
 
         time_step = 1.0
@@ -2846,8 +2860,8 @@ def initProgressBarVariables():
         timeMarkData = 0
         timeNow = 0.0
         timeNowData = 0
-        speedCurrent = 1048576.0
-        speedAverage = 1048576.0
+        speedCurrent = 1000*1000.0
+        speedAverage = 1000*1000.0
 
         progressBarVars[0] = timeStarted
         progressBarVars[1] = data_step
@@ -2868,23 +2882,37 @@ def initProgressBarVariables():
 
 
 #===============================================================================
-# function to calculate checksum
+# functions to calculate checksum and get new file name
 #===============================================================================
 
-def getChecksum(fileNameTemp, fileMatcher):
+def getNewChecksumFileName(fileName, fileMatcher, checksumAsHex):
     fileNameNew = ""
-    if os.path.isfile(fileNameTemp):
+    fileNamePrepend = fileMatcher.sub(r'\1', fileName)
+    fileNameAppend = fileMatcher.sub(r'\3', fileName)
+    checksumAsHexUpper = checksumAsHex.upper()
+    fileNameNew = fileNamePrepend + checksumAsHexUpper + fileNameAppend
+    return fileNameNew
+
+
+def getChecksumAsHex(checksum):
+    #checksumFormatted = '0x' + hex(checksum)[2:] #in python 2.7.14 it appends letter L
+    checksumHex = "%x" % checksum
+    return checksumHex.zfill(8)
+
+
+def getChecksum(pathToFile):
+    checksum = 1 #initialize with 1
+    if os.path.isfile(pathToFile):
         try:
-            f = open(fileNameTemp, 'rb')
-            checksum = 1
+            f = open(pathToFile, 'rb')
             print("\ncalculating checksum...")
-            fileSize = getFileSize(fileNameTemp)
+            fileSize = getFileSize(pathToFile)
 
             try:
                 progressBarVars = initProgressBarVariables()
 
                 while 1:
-                    buffer = f.read(1024*1024) #default 64*1024 for linux
+                    buffer = f.read(1024*1024) #default 64*1024 for linux (SLOW), 1024*1024 for windows (FAST also on linux)
                     if not buffer:
                         break
                     checksum = zlib.adler32(buffer, checksum)
@@ -2895,13 +2923,6 @@ def getChecksum(fileNameTemp, fileMatcher):
 
                 f.close()
                 checksum = checksum & 0xffffffff
-                fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
-                fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
-                #checksumFormatted = '0x' + (hex(checksum)[2:].zfill(8)).upper() #in python 2.7.14 it appends letter L
-                checksumHex = "%x" % checksum
-                checksumFormatted = '0x' + ((checksumHex.zfill(8)).upper())
-                fileNameNew = fileNamePrepend + checksumFormatted + fileNameAppend
-                print("\nadler32 checksum: %d (0x%s)" % (checksum, checksumHex.zfill(8)))
             except (OSError, IOError) as e:
                 print("\nCalculate checksum ERROR: getChecksum(e1) %s - %s" % (e.filename, e.strerror))
             finally:
@@ -2909,8 +2930,8 @@ def getChecksum(fileNameTemp, fileMatcher):
         except (Exception) as e:
             print ("\nCalculate checksum ERROR: getChecksum(e2) %s" % (e))
     else:
-        print('\nERROR: getChecksum(e3) Could not find new stratix image file to calculate checksum')
-    return fileNameNew
+        print('\nERROR: getChecksum(e3) Could not find file to calculate checksum')
+    return checksum
 
 #-------------------------------------------------------------------------------
 
@@ -2939,6 +2960,11 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
         tempFilePath = os.path.join(pathToDirTemp, tempFile)
         if os.path.isfile(tempFilePath):
             if fileMatcherInstaller.search(tempFile):
+
+            #------------------------------------------
+            # open file
+            #------------------------------------------
+                fileContent = None
                 try:
                     # if PYTHON_MAJOR >= 3:
                         # f = open(tempFilePath, 'r', newline = '')
@@ -2948,13 +2974,22 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
                     try:
                         fileContent = f.read()
                         f.close()
-                        fileContent = fileMatcher.sub((r'\1%s\5' % (fileName)), fileContent)
+
                     except (OSError, IOError) as e:
                         print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e1) %s - %s" % (e.filename, e.strerror))
                     finally:
                         f.close()
                 except (Exception) as e:
                     print("\nInstaller script reading ERROR: setNewFileNameInInstallerScripts(e2) %s" % (e))
+
+            #------------------------------------------
+            # modify with new nahka filename
+            #------------------------------------------
+                fileContent = fileMatcher.sub((r'\1%s\5' % (fileName)), fileContent)
+
+            #------------------------------------------
+            # save file
+            #------------------------------------------
                 try:
                     if PYTHON_MAJOR >= 3:
                         f = open(tempFilePath, 'w', newline = '')
@@ -3064,7 +3099,7 @@ def getFileFromArtifactory(pathToFile, pathToDirRes, pathToFileInRes):
     return pathToFileInRes
 
 
-def getFileFromServer(serverAddressAndPath, pathToDirRes, fileMatcher):
+def getFileFromServer(serverAddressAndPath, pathToDirRes, imageMatcher, fileMatcher):
     fileName = ""
     if fileMatcher.search(serverAddressAndPath):
         fileName = fileMatcher.sub(r'\2\3\4\5', serverAddressAndPath)
@@ -3081,7 +3116,7 @@ def getFileFromServer(serverAddressAndPath, pathToDirRes, fileMatcher):
         sftp.stdout.readline()
         sftp.stdout.flush()
         if not fileName:
-            sftp.stdin.write(b'ls -t1 *-rfsw-image-install_* | head -1\n')
+            sftp.stdin.write(b'ls -t1 %s | head -1\n' % (imageMatcher))
             sftp.stdin.flush()
             sftp.stdout.readline()
             sftp.stdout.flush()
@@ -3184,10 +3219,11 @@ def handleGettingFileFromArtifactory(pathToFile, pathToDirRes, fileMatcher, mess
     return pathToFileInRes
 
 
-def handleGettingFileFromServer(pathToFile, pathToDirRes, fileMatcher, messagePrinted):
-    pathToFileInRes = getFileFromServer(pathToFile, pathToDirRes, fileMatcher) #to avoid multiple passord promts when connecting through sftp
+def handleGettingFileFromServer(pathToFile, pathToDirRes, imageMatcher, fileMatcher, messagePrinted):
+    print("\ngetting file from other server...")
+    pathToFileInRes = getFileFromServer(pathToFile, pathToDirRes, imageMatcher, fileMatcher) #to avoid multiple passord promts when connecting through sftp
     modified = getLastFileModificationTimeLocal(pathToFileInRes)
-    printSelectedFile(pathToFile, messagePrinted, modified)
+    printSelectedFile((pathToFile + ' --> ' + os.path.basename(pathToFileInRes)), messagePrinted, modified)
     return pathToFileInRes
 
 #-------------------------------------------------------------------------------
@@ -3250,12 +3286,12 @@ def getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLA
 #-------------------------------------------------------------------------------
 # "get file" main handler
 #-------------------------------------------------------------------------------
-def handleGettingFile(pathToDirRes, serverMatcher, urlMatcher, fileMatcher, PATH_ARTIFACTORY_TEMPLATE, PATH, messagePrinted):
+def handleGettingFile(pathToDirRes, serverMatcher, urlMatcher, imageMatcher, fileMatcher, PATH_ARTIFACTORY_TEMPLATE, PATH, messagePrinted):
     createDir(pathToDirRes)
     pathToFileInRes = ""
     if serverMatcher.search(PATH):
         pathToFile = PATH
-        pathToFileInRes = handleGettingFileFromServer(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
+        pathToFileInRes = handleGettingFileFromServer(pathToFile, pathToDirRes, imageMatcher, fileMatcher, messagePrinted)
     elif urlMatcher.search(PATH):
         pathToFile = ""
         if fileMatcher.search(PATH):
@@ -3266,11 +3302,11 @@ def handleGettingFile(pathToDirRes, serverMatcher, urlMatcher, fileMatcher, PATH
     elif PATH.isdigit():
         pathToFile = getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLATE)
         pathToFileInRes = handleGettingFileFromArtifactory(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
-    elif os.path.isdir(PATH):
+    elif os.path.isdir(checkIfSymlinkAndGetRelativePath(PATH)):
         pathToFile = getPathToLatestFileInDir(PATH, fileMatcher)
         pathToFileInRes = handleGettingFileFromLocalNetwork(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
     else:
-        pathToFile = PATH
+        pathToFile = checkIfSymlinkAndGetRelativePath(PATH)
         pathToFileInRes = handleGettingFileFromLocalNetwork(pathToFile, pathToDirRes, fileMatcher, messagePrinted)
     return pathToFileInRes
 
@@ -3301,7 +3337,7 @@ def createNewIniFile(pathToFile):
 #     PATH_NAHKA ./nahka/tmp/deploy/images/nahka/FRM-rfsw-image-install_20190231120000-multi.tar\n\
 #     PATH_STRATIX                   C:\\LocalDir\\SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar       #you can also put comments after path (just put a hash sign \"#\" before comment)\n\
 \n\
-# 1c. If a directory name is just some number (eg. \"1234\") - put \"./\" before it's name (eg. \"./1234\") to differentiate it from artifactory URL build number:\n\
+# 1c. If a directory name is just some number (eg. \"1234\") - put \"./\" before its name (eg. \"./1234\") to differentiate it from artifactory URL build number:\n\
 #     PATH_NAHKA = LocalDir\n\
 #     PATH_STRATIX = ./1234\n\
 \n\
@@ -3437,9 +3473,10 @@ def main():
 #----------------------------
     urlMatcher              = re.compile(r'(https://|http://|ftp://)')
     serverMatcher           = re.compile(r'(wrlin)(.*)(emea.nsn-net.net)')
+    imageMatcher            = r'*-rfsw-image-install_*'
     fileMatcherNahka        = re.compile(r'(.*)(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)(.*)')
     fileMatcherStratix      = re.compile(r'(.*)(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar)(.*)')
-    fileMatcherChecksum     = re.compile(r'(.*)(0x)([a-fA-F0-9]{1,8})(.*)')
+    fileMatcherChecksum     = re.compile(r'(.*0x)([a-fA-F0-9]{1,8})(.*)')
     fileMatcherInstaller    = re.compile(r'.*-installer.sh')
 
 
@@ -3467,12 +3504,12 @@ def main():
 #----------------------------
 # copy files to local resources
 #----------------------------
-    pathToFileInResourcesNahka = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, fileMatcherNahka, PATH_ARTIFACTORY_TEMPLATE, PATH_NAHKA, 'selected Nahka file')
-    pathToFileInResourcesStratix = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, fileMatcherStratix, PATH_ARTIFACTORY_TEMPLATE, PATH_STRATIX, 'selected Stratix file')
+    pathToFileInResourcesNahka = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, imageMatcher, fileMatcherNahka, PATH_ARTIFACTORY_TEMPLATE, PATH_NAHKA, 'selected Nahka file')
+    pathToFileInResourcesStratix = handleGettingFile(pathToDirResources, serverMatcher, urlMatcher, imageMatcher, fileMatcherStratix, PATH_ARTIFACTORY_TEMPLATE, PATH_STRATIX, 'selected Stratix file')
 
 
 #----------------------------
-# swap Nahka file in Stratix file
+# swap Nahka file contained within Stratix file
 #----------------------------
     extractTarfile(pathToDirTemp, pathToFileInResourcesStratix)
     replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInResourcesNahka, fileMatcherNahka)
@@ -3484,7 +3521,8 @@ def main():
 #----------------------------
 # calculate checksum and rename Stratix file
 #----------------------------
-    fileNameStratixNew = getChecksum(fileNameStratixTemp, fileMatcherChecksum)
+    checksum = getChecksum(fileNameStratixTemp)
+    fileNameStratixNew = getNewChecksumFileName(fileNameStratixTemp, fileMatcherChecksum, getChecksumAsHex(checksum))
     renameStratixFile(fileNameStratixTemp, fileNameStratixNew)
 
 
