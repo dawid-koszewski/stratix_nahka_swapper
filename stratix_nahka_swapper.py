@@ -1,10 +1,12 @@
 #!/usr/bin/python
 
 #-------------------------------------------------------------------------------
-# author:   dawid.koszewski@nokia.com
-# date:     2019.10.30
-# update:   2019.11.13
-# version:  01q
+# supports:     python 2.7, python 3
+#
+# author:       dawid.koszewski@nokia.com
+# date:         2019.10.30
+# update:       2019.11.13
+# version:      01r
 #
 # written in Notepad++
 #
@@ -20,16 +22,63 @@ import subprocess
 import sys
 import tarfile
 import time
+#import zlib
+
+
+def pressEnterToExit():
+#1.
+    try:
+        raw_input("\nPress Enter to exit...\n") #python2 only
+    except (SyntaxError, Exception) as e:
+        input("\nPress Enter to exit...\n") #python3 only
+#2.
+    # try:
+        # input("\nPress Enter to exit...\n") #python3 only
+    # except (SyntaxError, Exception) as e:
+        # pass
+    time.sleep(1)
+    sys.exit()
+
+
+def pressEnterToContinue():
+#1.
+    try:
+        raw_input("\nPress Enter to continue...\n") #python2 only
+    except (SyntaxError, Exception) as e:
+        input("\nPress Enter to continue...\n") #python3 only
+#2.
+    # try:
+        # input("\nPress Enter to continue...\n")  #python3 only
+    # except (SyntaxError, Exception) as e:
+        # pass
+    time.sleep(1)
+
+
+try:
+    import zlib
+except (ImportError, Exception) as e:
+    print("%s" % e)
+    print("Script will now attempt to install required module: %s" % e.name)
+    pressEnterToContinue()
+    try:
+        #subprocess.run('pip install zlib')
+        subprocess.call("pip install zlib")
+    except (Exception) as e:
+        print("%s" % e)
 import zlib
 
 
 try:
     import requests
-except ImportError as e:
+except (ImportError, Exception) as e:
     print("%s" % e)
     print("Script will now attempt to install required module: %s" % e.name)
     pressEnterToContinue()
-    subprocess.run('pip install requests')
+    try:
+        #subprocess.run('pip install requests')
+        subprocess.call("pip install requests")
+    except (Exception) as e:
+        print("%s" % e)
 import requests
 
 
@@ -52,9 +101,12 @@ import requests
 #                                                                              #
 # shutil LIBRARY functions BELOW by:                                           #
 #                                                                              #
-# author:   doko@ubuntu.com                                                    #
-# date:     Thu, 30 Apr 2015 13:44:18 +0200 (2015-04-30)                       #
-# link:     https://hg.python.org/cpython/file/eb09f737120b/Lib/shutil.py      #
+# authors:  gvanrossum, serhiy-storchaka, birkenfeld, pitrou, benjaminp,       #
+#           rhettinger, merwok, loewis, tim-one, nnorwitz, doerwalter,         #
+#           ronaldoussoren, ned-deily, florentx, freddrake, csernazs,          #
+#           brettcannon, warsaw                                                #
+# date:     24 Oct 2018                                                        #
+# link:     https://github.com/python/cpython/blob/2.7/Lib/shutil.py           #
 #                                                                              #
 ################################################################################
 
@@ -65,6 +117,22 @@ XXX The functions here don't copy the resource fork or other metadata on Mac.
 """
 
 import stat
+import errno
+
+# class Error(EnvironmentError):
+    # pass
+
+# class SpecialFileError(EnvironmentError):
+    # """Raised when trying to do a kind of operation (e.g. copying) which is
+    # not supported on a special file (e.g. a named pipe)"""
+
+# class ExecError(EnvironmentError):
+    # """Raised when a command could not be executed"""
+
+# try:
+    # WindowsError
+# except NameError:
+    # WindowsError = None
 
 
 # def copyfileobj(fsrc, fdst, length=16*1024):
@@ -74,6 +142,7 @@ import stat
         # if not buf:
             # break
         # fdst.write(buf)
+
 
 def _samefile(src, dst):
     # Macintosh, Unix.
@@ -87,15 +156,11 @@ def _samefile(src, dst):
     return (os.path.normcase(os.path.abspath(src)) ==
             os.path.normcase(os.path.abspath(dst)))
 
-def copyfile(src, dst, *, follow_symlinks=True):
-    """Copy data from src to dst.
 
-    If follow_symlinks is not set and src is a symbolic link, a new
-    symlink will be created instead of copying the file it points to.
-
-    """
+def copyfile(src, dst):
+    """Copy data from src to dst"""
     if _samefile(src, dst):
-        raise SameFileError("{!r} and {!r} are the same file".format(src, dst))
+        raise Error("`%s` and `%s` are the same file" % (src, dst))
 
     for fn in [src, dst]:
         try:
@@ -108,116 +173,71 @@ def copyfile(src, dst, *, follow_symlinks=True):
             if stat.S_ISFIFO(st.st_mode):
                 raise SpecialFileError("`%s` is a named pipe" % fn)
 
-    if not follow_symlinks and os.path.islink(src):
-        os.symlink(os.readlink(src), dst)
-    else:
-        with open(src, 'rb') as fsrc:
-            with open(dst, 'wb') as fdst:
-                #copyfileobj(fsrc, fdst)
-                #copyfileobj(fsrc, fdst, printProgress, src) # MODIFIED TO CALL USER DEFINED FUNCTION (dawid.koszewski@nokia.com)
-                copyfileobj(fsrc, fdst, src)
-    return dst
+    with open(src, 'rb') as fsrc:
+        with open(dst, 'wb') as fdst:
+            #copyfileobj(fsrc, fdst)
+            copyfileobj(fsrc, fdst, src) #modified by dawid.koszewski@nokia.com
 
 
-if hasattr(os, 'listxattr'):
-    def _copyxattr(src, dst, *, follow_symlinks=True):
-        """Copy extended filesystem attributes from `src` to `dst`.
+def copystat(src, dst):
+    """Copy file metadata
 
-        Overwrite existing attributes.
-
-        If `follow_symlinks` is false, symlinks won't be followed.
-
-        """
-
-        try:
-            names = os.listxattr(src, follow_symlinks=follow_symlinks)
-        except OSError as e:
-            if e.errno not in (errno.ENOTSUP, errno.ENODATA):
-                raise
-            return
-        for name in names:
-            try:
-                value = os.getxattr(src, name, follow_symlinks=follow_symlinks)
-                os.setxattr(dst, name, value, follow_symlinks=follow_symlinks)
-            except OSError as e:
-                if e.errno not in (errno.EPERM, errno.ENOTSUP, errno.ENODATA):
-                    raise
-else:
-    def _copyxattr(*args, **kwargs):
-        pass
-
-def copystat(src, dst, *, follow_symlinks=True):
-    """Copy all stat info (mode bits, atime, mtime, flags) from src to dst.
-
-    If the optional flag `follow_symlinks` is not set, symlinks aren't followed if and
-    only if both `src` and `dst` are symlinks.
-
+    Copy the permission bits, last access time, last modification time, and
+    flags from `src` to `dst`. On Linux, copystat() also copies the "extended
+    attributes" where possible. The file contents, owner, and group are
+    unaffected. `src` and `dst` are path names given as strings.
     """
-    def _nop(*args, ns=None, follow_symlinks=None):
-        pass
-
-    # follow symlinks (aka don't not follow symlinks)
-    follow = follow_symlinks or not (os.path.islink(src) and os.path.islink(dst))
-    if follow:
-        # use the real function if it exists
-        def lookup(name):
-            return getattr(os, name, _nop)
-    else:
-        # use the real function only if it exists
-        # *and* it supports follow_symlinks
-        def lookup(name):
-            fn = getattr(os, name, _nop)
-            if fn in os.supports_follow_symlinks:
-                return fn
-            return _nop
-
-    st = lookup("stat")(src, follow_symlinks=follow)
+    st = os.stat(src)
     mode = stat.S_IMODE(st.st_mode)
-    lookup("utime")(dst, ns=(st.st_atime_ns, st.st_mtime_ns),
-        follow_symlinks=follow)
-    try:
-        lookup("chmod")(dst, mode, follow_symlinks=follow)
-    except NotImplementedError:
-        # if we got a NotImplementedError, it's because
-        #   * follow_symlinks=False,
-        #   * lchown() is unavailable, and
-        #   * either
-        #       * fchownat() is unavailable or
-        #       * fchownat() doesn't implement AT_SYMLINK_NOFOLLOW.
-        #         (it returned ENOSUP.)
-        # therefore we're out of options--we simply cannot chown the
-        # symlink.  give up, suppress the error.
-        # (which is what shutil always did in this circumstance.)
-        pass
-    if hasattr(st, 'st_flags'):
+    if hasattr(os, 'utime'):
+        os.utime(dst, (st.st_atime, st.st_mtime))
+    if hasattr(os, 'chmod'):
+        os.chmod(dst, mode)
+    if hasattr(os, 'chflags') and hasattr(st, 'st_flags'):
         try:
-            lookup("chflags")(dst, st.st_flags, follow_symlinks=follow)
-        except OSError as why:
+            os.chflags(dst, st.st_flags)
+        #except OSError, why:
+        except OSError as why: #modified by dawid.koszewski@nokia.com
             for err in 'EOPNOTSUPP', 'ENOTSUP':
                 if hasattr(errno, err) and why.errno == getattr(errno, err):
                     break
             else:
                 raise
-    _copyxattr(src, dst, follow_symlinks=follow)
 
 
-def copy2(src, dst, *, follow_symlinks=True):
+def copy2(src, dst):
+    """Copy data and metadata. Return the file's destination.
+
+    Metadata is copied with copystat(). Please see the copystat function
+    for more information.
+
+    The destination may be a directory.
+
+    """
     if os.path.isdir(dst):
         dst = os.path.join(dst, os.path.basename(src))
-    copyfile(src, dst, follow_symlinks=follow_symlinks)
-    copystat(src, dst, follow_symlinks=follow_symlinks)
-    return dst
+    copyfile(src, dst)
+    copystat(src, dst)
 
 
 ################################################################################
 #                                                                              #
 # shutil LIBRARY functions ABOVE by:                                           #
 #                                                                              #
-# author:   doko@ubuntu.com                                                    #
-# date:     Thu, 30 Apr 2015 13:44:18 +0200 (2015-04-30)                       #
-# link:     https://hg.python.org/cpython/file/eb09f737120b/Lib/shutil.py      #
+# authors:  gvanrossum, serhiy-storchaka, birkenfeld, pitrou, benjaminp,       #
+#           rhettinger, merwok, loewis, tim-one, nnorwitz, doerwalter,         #
+#           ronaldoussoren, ned-deily, florentx, freddrake, csernazs,          #
+#           brettcannon, warsaw                                                #
+# date:     24 Oct 2018                                                        #
+# link:     https://github.com/python/cpython/blob/2.7/Lib/shutil.py           #
 #                                                                              #
 ################################################################################
+
+
+
+
+
+
 
 #-------------------------------------------------------------------------------
 
@@ -232,58 +252,58 @@ def printFunFact():
     "2. If a star passes too close to a black hole, it can be torn apart.", 
     "3. The hottest planet in our solar system is Venus.", 
     "4. Our solar system is 4.6 billion years old.", 
-    "5. Enceladus, one of Saturn’s smaller moons, reflects 90% of the Sun’s light.", 
+    "5. Enceladus, one of Saturn's smaller moons, reflects 90% of the Sun's light.", 
     "6. The highest mountain discovered is the Olympus Mons, which is located on Mars.", 
     "7. The Whirlpool Galaxy (M51) was the first celestial object identified as being spiral.", 
     "8. A light-year is the distance covered by light in a single year.", 
     "9. The Milky Way galaxy is 105,700 light-years wide.", 
     "10. The Sun weighs about 330,000 times more than Earth.", 
-    "11. Footprints left on the Moon won’t disappear as there is no wind.", 
+    "11. Footprints left on the Moon won't disappear as there is no wind.", 
     "12. Because of lower gravity, a person who weighs 220 lbs on Earth would weigh 84 lbs on Mars.", 
     "13. There are 79 known moons orbiting Jupiter.", 
     "14. The Martian day is 24 hours 39 minutes and 35 seconds long.", 
-    "15. NASA’s Crater Observation and Sensing Satellite (LCROSS) found evidence of water on the Earth’s Moon.", 
-    "16. The Sun makes a full rotation once every 25 – 35 days.", 
+    "15. NASA's Crater Observation and Sensing Satellite (LCROSS) found evidence of water on the Earth's Moon.", 
+    "16. The Sun makes a full rotation once every 25 - 35 days.", 
     "17. Earth is the only planet not named after a God.", 
-    "18. Due to the Sun and Moon’s gravitational pull, we have tides.", 
+    "18. Due to the Sun and Moon's gravitational pull, we have tides.", 
     "19. Pluto is smaller than the United States.", 
     "20. According to mathematics, white holes are possible, although as of yet we have found none.", 
     "21. There are more volcanoes on Venus than any other planet in our solar system.", 
-    "22. Uranus’ blue glow is due to the gases in its atmosphere.", 
+    "22. Uranus' blue glow is due to the gases in its atmosphere.", 
     "23. In our solar system that are 4 planets known as gas giants: Jupiter, Saturn, Uranus & Neptune.", 
     "24. Uranus has 27 moons that have been discovered so far.", 
     "25. Because of its unique tilt, a season on Uranus is equivalent to 21 Earth years.", 
-    "26. Neptune’s moon, Triton, orbits the planet backwards.", 
+    "26. Neptune's moon, Triton, orbits the planet backwards.", 
     "27. Triton is gradually getting closer to the planet it orbits.", 
     "28. There are more stars in space than there are grains of sand in the world.", 
     "29. Neptune takes nearly 165 Earth years to make one orbit of the Sun.", 
-    "30. Pluto’s largest moon, Charon, is half the size of Pluto.", 
+    "30. Pluto's largest moon, Charon, is half the size of Pluto.", 
     "31. The International Space Station is the largest manned object ever sent into space.", 
     "32. A day on Pluto is lasts for 153.6 hours long.", 
     "33. Saturn is the second largest planet in our solar system.", 
     "34. Any free-moving liquid in outer space will form itself into a sphere.", 
-    "35. Mercury, Venus, Earth & Mars are known as the “Inner Planets”.", 
+    "35. Mercury, Venus, Earth & Mars are known as the \"Inner Planets\".", 
     "36. We know more about Mars and our Moon than we do about our oceans.", 
     "37. The Black Arrow is the only British satellite to be launched using a British rocket.", 
     "38. Only 5% of the universe is visible from Earth.", 
     "39. Light travels from the Sun to the Earth in less than 10 minutes.", 
     "40. At any given moment, there are at least 2,000 thunderstorms happening on Earth.", 
-    "41. The Earth’s rotation is slowing slightly as time goes on.", 
-    "42. If you were driving at 75 miles per hour, it would take 258 days to drive around Saturn’s rings.", 
+    "41. The Earth's rotation is slowing slightly as time goes on.", 
+    "42. If you were driving at 75 miles per hour, it would take 258 days to drive around Saturn's rings.", 
     "43. Outer Space is only 62 miles away.", 
     "44. The International Space Station circles Earth every 92 minutes.", 
-    "45. Stars twinkle because of the way light is disrupted as it passes through Earth’s atmosphere.", 
+    "45. Stars twinkle because of the way light is disrupted as it passes through Earth's atmosphere.", 
     "46. We always see the same side of the Moon, no matter where we stand on Earth.", 
     "47. There are three main types of galaxies: elliptical, spiral & irregular.", 
     "48. There are approximately 100 thousand million stars in the Milky Way.", 
-    "49. Using the naked eye, you can see 3 – 7 different galaxies from Earth.", 
+    "49. Using the naked eye, you can see 3 - 7 different galaxies from Earth.", 
     "50. In 2016, scientists detected a radio signal from a source 5 billion light-years away.", 
     "51. The closest galaxy to us is the Andromeda Galaxy  its estimated at 2.5 million light-years away.", 
     "52. The first Supernovae observed outside of our own galaxy was in 1885.", 
     "53. The first ever black hole photographed is 3 million times the size of Earth.", 
     "54. The distance between the Sun & Earth is defined as an Astronomical Unit.", 
-    "55. The second man on the moon was Buzz Aldrin. “Moon” was Aldrin’s mother’s maiden name.", 
-    "56. Buzz Aldrin’s birth name was Edwin Eugene Aldrin Jr.", 
+    "55. The second man on the moon was Buzz Aldrin. \"Moon\" was Aldrin's mother's maiden name.", 
+    "56. Buzz Aldrin's birth name was Edwin Eugene Aldrin Jr.", 
     "57. On Venus, it snows metal and rains sulfuric acid.", 
     "58. The Mariner 10 was the first spacecraft that visited Mercury in 1974.", 
     "59. Space is completely silent.", 
@@ -291,44 +311,44 @@ def printFunFact():
     "61. Astronauts can grow approximately two inches (5 cm) in height when in space.", 
     "62. The Kuiper Belt is a region of the Solar System beyond the orbit of Neptune.", 
     "63. The first woman in space was a Russian called Valentina Tereshkova.", 
-    "64. If Saturn’s rings were 3 feet long, they would be 10,000 times thinner than a razorblade.", 
+    "64. If Saturn's rings were 3 feet long, they would be 10,000 times thinner than a razorblade.", 
     "65. The Hubble Space Telescope is one of the most productive scientific instruments ever built.", 
-    "66. The first artificial satellite in space was called “Sputnik”.", 
+    "66. The first artificial satellite in space was called \"Sputnik\".", 
     "67. Exoplanets are planets that orbit around other stars.", 
     "68. The center of the Milky Way smells like rum & tastes like raspberries.", 
     "69. Our moon is moving away from Earth at a rate of 1.6 inch (4 cm) per year!", 
     "70. Pluto is named after the Roman god of the underworld, not the Disney Dog.", 
     "71. Spacesuit helmets have a Velcro patch, to help astronauts itch.", 
-    "72. The ISS is visible to more than 90% of the Earth’s population.", 
+    "72. The ISS is visible to more than 90% of the Earth's population.", 
     "73. Saturn is the only planet that could oat in water.", 
     "74. Asteroids are the byproducts of formations in the solar system, more than 4 billion years ago.", 
-    "75. Astronauts can’t burp in space.", 
-    "76. Uranus was originally called “George’s Star”.", 
+    "75. Astronauts can't burp in space.", 
+    "76. Uranus was originally called \"George's Star\".", 
     "77. A sunset on Mars is blue.", 
     "78. The Earth weighs about 81 times more than the Moon.", 
-    "79. The first living mammal to go into space was a dog named “Laika” from Russia.", 
-    "80. The word “astronaut” means “star sailor” in its origins.", 
-    "81. “NASA” stands for National Aeronautics and Space Administration.", 
+    "79. The first living mammal to go into space was a dog named \"Laika\" from Russia.", 
+    "80. The word \"astronaut\" means \"star sailor\" in its origins.", 
+    "81. \"NASA\" stands for National Aeronautics and Space Administration.", 
     "82. Gennady Padalka has spent more time in space than anyone else.", 
     "83. Mercury has no atmosphere, which means there is no wind or weather.", 
-    "84. In China, the Milky Way is known as the “Silver River”.", 
+    "84. In China, the Milky Way is known as the \"Silver River\".", 
     "85. Red Dwarf stars that are low in mass can burn continually for up to 10 trillion years!", 
     "86. Scientists once believed that the same side of Mercury always faced the Sun.", 
-    "87. Jupiter’s Red Spot is shrinking.", 
-    "88. A large percentage of asteroids are pulled in by Jupiter’s gravity.", 
+    "87. Jupiter's Red Spot is shrinking.", 
+    "88. A large percentage of asteroids are pulled in by Jupiter's gravity.", 
     "89. A day on Mercury is equivalent to 58 Earth days.", 
-    "90. As space has no gravity, pens won’t work.", 
+    "90. As space has no gravity, pens won't work.", 
     "91. On average it takes the light only 1.3 seconds to travel from the Moon to Earth.", 
     "92. There are 88 recognized star constellations in our night sky.", 
-    "93. The center of a comet is called a “nucleus”.", 
-    "94. As early as 240BC the Chinese began to document the appearance of Halley’s Comet.", 
+    "93. The center of a comet is called a \"nucleus\".", 
+    "94. As early as 240BC the Chinese began to document the appearance of Halley's Comet.", 
     "95. In 2006, the International Astronomical Union reclassified Pluto as a dwarf planet.", 
     "96. There are 5 Dwarf Planets recognized in our Solar System.", 
     "97. Mars is the most likely planet in our solar system to be hospitable to life.", 
-    "98. Halley’s Comet will pass over Earth again on 26th July 2061.", 
+    "98. Halley's Comet will pass over Earth again on 26th July 2061.", 
     "99. There is a planet half the radius of the Earth with a surface made up of diamonds.", 
     "100. Buzz Lightyear from Toy Story has actually been to outer space!"]
-    print("\nDid you know?\n%s\n" % fun_facts_cosmos[random.randint(0, 100)])
+    print("\nDid you know?\n%s\n" % fun_facts_cosmos[random.randint(0, 99)])
 
 #-------------------------------------------------------------------------------
 
@@ -350,16 +370,6 @@ def printFunFact():
 #===============================================================================
 # utility functions
 #===============================================================================
-
-def pressEnterToExit():
-    input("\nPress Enter to exit...\n")
-    time.sleep(1)
-    sys.exit()
-
-
-def pressEnterToContinue():
-    input("\nPress Enter to continue...\n")
-    time.sleep(1)
 
 
 def printSelectedFile(pathToFile, name):
@@ -632,7 +642,6 @@ def printProgress(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 104
 # custom implementation of copyfileobj from shutil LIBRARY (enable displaying copy file progress)
 #===============================================================================
 
-#def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
 def copyfileobj(fsrc, fdst, src, length=16*1024):
     fileSize = os.stat(src).st_size
     timeStarted = time.time()
@@ -724,7 +733,8 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
                     printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
             printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
             print()
-    except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
+    #except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
+    except (Exception) as e:
         print("\nFile download ERROR: %s\n" % (e))
         pressEnterToExit()
     except (IOError) as e:
@@ -760,7 +770,8 @@ def isFileAvailable(pathToFile, pathIsUrl):
             response = requests.head(pathToFile)
             print('modified: %s (on server)\n' % (response.headers['last-modified']))
             return response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in parentheses...
-        except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
+        #except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
+        except (Exception) as e:
             print("%s\n\nYou probably need authentication to download that file...\n" % (e))
             return False
     else:
@@ -870,12 +881,12 @@ def loadIniFileIntoList(pathToFile):
         except (IOError) as e:
             print("\nInifile loading ERROR: %s - %s\n" % (e.filename, e.strerror))
     print("\nInitialization file not found...\n")
+    createNewIniFile(pathToFile)
     print("%s file has been created!!!" % (pathToFile))
     print("now you will be able to specify location of Nahka and Stratix files in there\n")
     print("In the first run this script will search for Nahka and Stratix files in the current working directory (%s)\n" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
     print("Every next time it will search for Nahka and Stratix files in locations defined by you in the ini file...\n")
     pressEnterToContinue()
-    createNewIniFile(pathToFile)
     return []
 
 
@@ -947,11 +958,11 @@ def main():
     # if len(sys.argv) == 2:
         # path_to_zutil = sys.argv[1]
 
-    pathToFileIni = r'.\stratix_nahka_swapper.ini'
-    pathToDirRes = r'.\resources'
-    pathToDirTemp = r'.\SRM_temp'
-    pathToDirTempArtifacts = r'.\SRM_temp\artifacts'
-    fileNameStratixTemp = r'.\SRM-rfsw-image-install_z-uber-0x00000000.tar'
+    pathToFileIni = r'./stratix_nahka_swapper.ini'
+    pathToDirRes = r'./resources'
+    pathToDirTemp = r'./SRM_temp'
+    pathToDirTempArtifacts = r'./SRM_temp/artifacts'
+    fileNameStratixTemp = r'./SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
     urlMatcher = re.compile(r'(https://|http://|ftp://)')
     fileMatcher = re.compile(r'(.*)(0x)([a-fA-F0-9]{1,8})(.*)')
