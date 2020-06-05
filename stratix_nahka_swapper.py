@@ -3,8 +3,8 @@
 #-------------------------------------------------------------------------------
 # author:   dawid.koszewski@nokia.com
 # date:     2019.10.30
-# update:   2019.11.11
-# version:  01n
+# update:   2019.11.12
+# version:  01o
 #
 # written in Notepad++
 #
@@ -243,11 +243,13 @@ def copyfileobj(fsrc, fdst, src, length=16*1024):
     tmp = 0
     copied = 0
     step = 131072
-    time1 = time.time()
+    time0 = time.time()
+    time1Tmp = time.time()
     time2 = 0
     timeStep = 1.0
-    time1data = 0
-    speed = 131072.0
+    time1TmpData = 0
+    speedCur = 1048576.0
+    speedAvg = 1048576.0
     while 1:
         buf = fsrc.read(length)
         if not buf:
@@ -255,39 +257,57 @@ def copyfileobj(fsrc, fdst, src, length=16*1024):
         fdst.write(buf)
         copied += len(buf)
         time2 = time.time()
-        if time2 >= (time1 + timeStep):
-            timeDiff = time2 - time1 #can differ slightly from timeStep
-            dataDiff = copied - time1data
-            time1 = time2
-            time1data = copied
-            speed = (dataDiff / timeDiff) #Bytes per second
+        if time2 >= (time1Tmp + timeStep):
+            timeDiff21 = time2 - time1Tmp #can differ slightly from timeStep
+            dataDiff21 = copied - time1TmpData
+            time1Tmp = time2
+            time1TmpData = copied
+            if timeDiff21 == 0:
+                timeDiff21 = 0.1
+            speedCur = (dataDiff21 / timeDiff21) #Bytes per second
         if copied >= (tmp + step):
             tmp = copied
-            printProgress(copied, fileSize, speed)
-    printProgress(copied, fileSize, speed)
+            timeDiff20 = time2 - time0
+            if timeDiff20 == 0:
+                timeDiff20 = 0.1
+            speedAvg = (copied / timeDiff20) #Bytes per second
+            printProgress(copied, fileSize, speedCur, speedAvg)
+    printProgress(copied, fileSize, speedCur, speedAvg)
     print()
 
 #-------------------------------------------------------------------------------
 
 
 #===============================================================================
-# function to print progress bar
+# functions to print progress bar
 #===============================================================================
 
-def printProgress(copied, fileSize, speed = 131072.0):
+def getUnit(variable):
+    units = ['kB', 'MB', 'GB', 'TB']
+    variableUnit = ' B'
+    for unit in units:
+        if variable > 1000:
+            variable /= 1024
+            variableUnit = unit
+        else:
+            break
+    return variable, variableUnit
+
+
+def printProgress(copied, fileSize, speedCur = 1048576.0, speedAvg = 1048576.0):
     percent = (copied / fileSize) * 100
     dataLeft = (fileSize - copied) #Bytes
-    timeLeftSeconds = (dataLeft / speed) #Seconds
+    timeLeftSeconds = (dataLeft / speedAvg) #Seconds
 
     timeLeftHours = timeLeftSeconds / 3600
     timeLeftSeconds = timeLeftSeconds % 3600
     timeLeftMinutes = timeLeftSeconds / 60
     timeLeftSeconds = timeLeftSeconds % 60
 
-    copied = copied / 1048576 #MBytes
-    fileSize = fileSize / 1048576 #MBytes
-    speed = speed / 1048576 #MBytes per second
-    padding = len(str(int(fileSize)))
+    #padding = len(str(int(fileSize)))
+    copied, copiedUnit = getUnit(copied)
+    fileSize, fileSizeUnit = getUnit(fileSize)
+    speedCur, speedCurUnit = getUnit(speedCur)
 
     symbolDone = '='
     symbolLeft = '-'
@@ -295,8 +315,7 @@ def printProgress(copied, fileSize, speed = 131072.0):
     sizeDone = int((percent / 100) * sizeTotal)
     sizeLeft = sizeTotal - sizeDone
     progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
-    #sys.stdout.write("\033[K") # Clear to the end of line #depends on terminal...
-    sys.stdout.write('\r%3d%% %s %*.*dMB / %*.*dMB %*.*fMB/s %*.*dh%*.*dm%*.*ds' % (percent, progressBar, padding, 0, copied, padding, 0, fileSize, 5, 1, speed, 2, 1, timeLeftHours, 2, 2, timeLeftMinutes, 2, 2, timeLeftSeconds))
+    sys.stdout.write('\r%3d%% %s [%3.1d%s/%3.1d%s]  [%6.2f%s/s] %3.1dh%2.2dm%2.2ds' % (percent, progressBar, copied, copiedUnit, fileSize, fileSizeUnit, speedCur, speedCurUnit, timeLeftHours, timeLeftMinutes, timeLeftSeconds))
     sys.stdout.flush()
     #time.sleep(0.01) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
 
@@ -446,10 +465,10 @@ def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
             zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameTemp)).decode(sys.stdout.encoding).strip()
             #print('\nzutil output:\n%s\n' % (zutilOutput))
 
-            filenamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
-            filenameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
-            checksumNew = re.sub(fileMatcher, r'\3', zutilOutput).upper()
-            fileNameNew = filenamePrepend + '0x' + checksumNew + filenameAppend
+            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
+            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
+            checksumNew = fileMatcher.sub(r'\3', zutilOutput).upper()
+            fileNameNew = fileNamePrepend + '0x' + checksumNew + filenameAppend
         except (Exception) as e:
             print ("\nCalculate checksum ERROR: %s\n" % (e))
     else:
@@ -471,9 +490,9 @@ def getChecksum(fileNameTemp, fileMatcher):
             checksum = checksum & 0xffffffff
             #print("%d %s" % (checksum, (hex(checksum))))
 
-            fileNamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
-            fileNameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
-            checksumNew = re.sub(fileMatcher, r'\3', hex(checksum)).upper()
+            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
+            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
+            checksumNew = fileMatcher.sub(r'\3', hex(checksum)).upper()
             fileNameNew = fileNamePrepend + '0x' + checksumNew + fileNameAppend
         except (OSError, IOError) as e:
             print ("\nCalculate checksum ERROR: %s - %s\n" % (e.filename, e.strerror))
@@ -537,8 +556,8 @@ def loadIniFileIntoList(pathToFile):
     return []
 
 
-def getDateFromNahkaFile(fileMatcherNahka):
-    return lambda f : re.sub(fileMatcherNahka, r'\2', f)
+def getDateFromNahkaFile(fileMatcher):
+    return lambda f : fileMatcher.sub(r'\2', f)
 
 
 def getLastModificationTime(pathToFile):
@@ -560,27 +579,28 @@ def getPathToLatestFileInDir(pathToDir, matcher, comparator):
     for item in os.listdir(pathToDir):
         pathToFile = os.path.join(pathToDir, item)
         if os.path.isfile(pathToFile):
-            if re.search(matcher, item):
+            if matcher.search(item):
                 filesList.append(pathToFile)
     filesList.sort(key = comparator, reverse = False)
     return filesList[-1] if filesList else ""
 
 
-def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
+def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, pathMatcherStratix):
     pathToFileNahka = ""
     pathToFileStratix = ""
     iniFileLinesList = loadIniFileIntoList(pathToFileIni)
     if iniFileLinesList:
         for line in iniFileLinesList:
             line = line.strip()
-            if re.search(fileMatcherNahka, line):
+            if fileMatcherNahka.search(line):
                 pathToFileNahka = line
-            elif re.search(fileMatcherStratix, line):
+            elif fileMatcherStratix.search(line):
                 pathToFileStratix = line
             elif os.path.isdir(line):
-                pathToLatestFileInDirNahka = getPathToLatestFileInDir(line, fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
-                if pathToLatestFileInDirNahka:
-                    pathToFileNahka = pathToLatestFileInDirNahka
+                if not pathMatcherStratix.search(line):
+                    pathToLatestFileInDirNahka = getPathToLatestFileInDir(line, fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
+                    if pathToLatestFileInDirNahka:
+                        pathToFileNahka = pathToLatestFileInDirNahka
                 pathToLatestFileInDirStratix = getPathToLatestFileInDir(line, fileMatcherStratix, getLastModificationTime)
                 if pathToLatestFileInDirStratix:
                     pathToFileStratix = pathToLatestFileInDirStratix
@@ -611,11 +631,13 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
             tmp = 0
             copied = 0
             step = 131072
-            time1 = time.time()
+            time0 = time.time()
+            time1Tmp = time.time()
             time2 = 0
             timeStep = 1.0
-            time1data = 0
-            speed = 131072.0
+            time1TmpData = 0
+            speedCur = 1048576.0
+            speedAvg = 1048576.0
             buffer = response.raw.read(128)
             copied += len(buffer)
             while buffer:
@@ -623,16 +645,22 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
                 buffer = response.raw.read(128)
                 copied += len(buffer)
                 time2 = time.time()
-                if time2 >= (time1 + timeStep):
-                    timeDiff = time2 - time1
-                    dataDiff = copied - time1data
-                    time1 = time2
-                    time1data = copied
-                    speed = (dataDiff / timeDiff) #Bytes per second
+                if time2 >= (time1Tmp + timeStep):
+                    timeDiff21 = time2 - time1Tmp #can differ slightly from timeStep
+                    dataDiff21 = copied - time1TmpData
+                    time1Tmp = time2
+                    time1TmpData = copied
+                    if timeDiff21 == 0:
+                        timeDiff21 = 0.1
+                    speedCur = (dataDiff21 / timeDiff21) #Bytes per second
                 if copied >= (tmp + step):
                     tmp = copied
-                    printProgress(copied, fileSize, speed)
-            printProgress(copied, fileSize, speed)
+                    timeDiff20 = time2 - time0
+                    if timeDiff20 == 0:
+                        timeDiff20 = 0.1
+                    speedAvg = (copied / timeDiff20) #Bytes per second
+                    printProgress(copied, fileSize, speedCur, speedAvg)
+            printProgress(copied, fileSize, speedCur, speedAvg)
         print()
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
         print("\nFile download ERROR: %s\n" % (e))
@@ -680,14 +708,19 @@ def isFileAvailable(pathToFile, pathIsUrl):
     return False
 
 
-def getFileNameFromLink(pathToFile, fileMatcher):
-    return re.sub(fileMatcher, r'\1\2\3', pathToFile)
+def getFileNameFromURL(pathToFile, fileMatcher):
+    fileName = ""
+    try:
+        fileName = fileMatcher.sub(r'\1\2\3', pathToFile)
+    except (re.error, Exception) as e:
+        print("\n%s\n\nGetting file name from URL ^^^ABOVE ERROR: %s\n(Please specify correct fileMatcher as 5th parameter in \"handleGettingFile\" function)" % (pathToFile, e))
+    return fileName
 
 
 def getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher):
     pathToFileInRes = ""
     if pathIsUrl:
-        fileName = getFileNameFromLink(pathToFile, fileMatcher)
+        fileName = getFileNameFromURL(pathToFile, fileMatcher)
         pathToFileInRes = os.path.join(pathToDirRes, fileName)
     else:
         fileName = os.path.basename(pathToFile)
@@ -696,10 +729,10 @@ def getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher):
 
 
 def isPathUrl(pathToFile, urlMatcher):
-    return re.search(urlMatcher, pathToFile)
+    return urlMatcher.search(pathToFile)
 
 
-def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = r''):
+def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = None):
     pathIsUrl = isPathUrl(pathToFile, urlMatcher)
     pathToFileInRes = getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher)
 
@@ -740,7 +773,7 @@ def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = 
 def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher):
     listDirTempArtifacts = listDirectory(pathToDirTempArtifacts)
     for tempFileArtifacts in listDirTempArtifacts:
-        if re.search(fileMatcher, tempFileArtifacts):
+        if fileMatcher.search(tempFileArtifacts):
             removeFile2(pathToDirTempArtifacts, tempFileArtifacts)
     try:
         shutil.copy2(pathToFileInRes, pathToDirTempArtifacts)
@@ -756,11 +789,11 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
     for tempFile in listDirTemp:
         tempFilePath = os.path.join(pathToDirTemp, tempFile)
         if os.path.isfile(tempFilePath):
-            if re.search(fileMatcherInstaller, tempFile):
+            if fileMatcherInstaller.search(tempFile):
                 try:
                     with open(tempFilePath, 'r') as f:
                         fileContent = f.read()
-                        fileContent = re.sub(fileMatcher, fileName, fileContent)
+                        fileContent = fileMatcher.sub(fileName, fileContent)
                 except (IOError) as e:
                     print("\nInstaller script reading ERROR: %s - %s\n" % (e.filename, e.strerror))
                 try:
@@ -799,14 +832,14 @@ def main():
     pathToDirTempArtifacts = r'.\SRM_temp\artifacts'
     fileNameStratixTemp = r'.\SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
-    urlMatcher = r'(https://|http://|ftp://)'
-    fileMatcher = r'(.*)(0x)([a-fA-F0-9]{8})(.*)'
-    fileMatcherNahka = r'(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)'
-    fileMatcherStratix = r'.*(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar).*'
-    fileMatcherInstaller = r'.*-installer.sh'
+    urlMatcher = re.compile(r'(https://|http://|ftp://)')
+    fileMatcher = re.compile(r'(.*)(0x)([a-fA-F0-9]{8})(.*)')
+    fileMatcherNahka = re.compile(r'(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)')
+    fileMatcherStratix = re.compile(r'.*(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar).*')
+    fileMatcherInstaller = re.compile(r'.*-installer.sh')
+    pathMatcherStratix = re.compile(r'.*(stratix10-aaib)([\/\\]{1,2})(tmp-glibc)([\/\\]{1,2})(deploy)([\/\\]{1,2})(images)([\/\\]{1,2})(stratix10-aaib).*')
 
-
-    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix)
+    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, pathMatcherStratix)
     pathToFileNahka = pathsToLatestFiles.get("pathToLatestFileNahka", "")
     pathToFileStratix = pathsToLatestFiles.get("pathToLatestFileStratix", "")
 
