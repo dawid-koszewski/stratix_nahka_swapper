@@ -1,17 +1,22 @@
 #!/usr/bin/python
 
 #-------------------------------------------------------------------------------
-# supports:     python 2.7, python 3.4 or newer
+# supports:     python 2.6, 2.7
+#               python 3.4 or newer
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.11.13
-# version:      01r
+# update:       2019.11.15
+# version:      01t
 #
 # written in Notepad++
 #
 #
 #-------------------------------------------------------------------------------
+
+################# KNOWN ISSUES: ################# 
+# - python 2 is not verifying CORRUPTED TAR files correctly
+# - no possibility to install requests module on wrlinb, needed to download Stratix from artifactory
 
 
 import errno
@@ -61,42 +66,31 @@ def pressEnterToContinue():
 try:
     import zlib
 except (ImportError, Exception) as e:
-    print("\n%s\nYou can proceed but you will need to calculate checksum manually\n" % e)
+    print("\n%s\nYou can proceed but you will need to calculate checksum manually" % e)
     pressEnterToContinue()
 
 
-try:
-    import requests
-except (ImportError, Exception) as e:
-    print("\n%s\n" % e)
-    print("Script will now attempt to install required module: %s" % e.name)
-    pressEnterToContinue()
+def installRequests():
     try:
-        print("if the following command will fail, script will try to access pypi.org through a proxy:")
-        print("pip install requests --retries 0 --timeout 3\n")
-        print("please wait for up to 15 seconds...")
+        print("If the following command will fail, script will try to access pypi.org through a proxy:")
+        print("pip install requests --retries 0 --timeout 3")
+        print("Please wait for up to 15 seconds...")
         subprocess.check_call("pip install requests --retries 0 --timeout 3")
     except (subprocess.CalledProcessError, Exception) as e:
         print("\n%s\n" % e)
         try:
-            print("pip install requests --proxy defra1c-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3\n")
-            print("please wait for up to 15 seconds...")
+            print("pip install requests --proxy defra1c-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
+            print("Please wait for up to 15 seconds...")
             subprocess.check_call("pip install requests --proxy defra1c-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
         except (subprocess.CalledProcessError, Exception) as e:
             print("\n%s\n" % e)
             try:
-                print("pip install requests --proxy fihel1d-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3\n")
-                print("please wait for up to 15 seconds...")
+                print("pip install requests --proxy fihel1d-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
+                print("Please wait for up to 15 seconds...")
                 subprocess.check_call("pip install requests --proxy fihel1d-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
             except (subprocess.CalledProcessError, Exception) as e:
                 print("\n%s\n" % e)
                 pass
-    pressEnterToContinue()
-try:
-    import requests
-except (ImportError, Exception) as e:
-    print("\n%s\nCould not get requests module from pypi.org\n" % e)
-    print("If you need to get Stratix or Nahka file from the web you will need to manually download it to the local directory (and add path to it in the ini file)\n")
     pressEnterToContinue()
 
 #-------------------------------------------------------------------------------
@@ -161,10 +155,28 @@ def copyfile(src, dst):
             if stat.S_ISFIFO(st.st_mode):
                 raise SpecialFileError("`%s` is a named pipe" % fn)
 
-    with open(src, 'rb') as fsrc:
-        with open(dst, 'wb') as fdst:
-            #copyfileobj(fsrc, fdst)
-            copyfileobj(fsrc, fdst, src) #modified by dawid.koszewski@nokia.com
+    #modified by dawid.koszewski@nokia.com
+    try:
+        fsrc = open(src, 'rb')
+        try:
+            fdst = open(dst, 'wb')
+            try:
+                #copyfileobj(fsrc, fdst)
+                copyfileobj(fsrc, fdst, src)
+                fdst.close()
+            except (OSError, IOError) as e:
+                print("\nFile copy ERROR: %s - %s" % (e.filename, e.strerror))
+                pressEnterToExit()
+            finally:
+                fdst.close()
+                fsrc.close()
+        except (Exception) as e:
+            print("\nFile copy ERROR: %s - %s" % (e))
+            pressEnterToExit()
+        fsrc.close()
+    except (Exception) as e:
+        print("\nFile copy ERROR: %s - %s" % (e))
+        pressEnterToExit()
 
 
 def copystat(src, dst):
@@ -337,7 +349,7 @@ def printFunFact():
     "98. Halley's Comet will pass over Earth again on 26th July 2061.", 
     "99. There is a planet half the radius of the Earth with a surface made up of diamonds.", 
     "100. Buzz Lightyear from Toy Story has actually been to outer space!"]
-    print("\nDid you know?\nFun Fact: #%s\n" % fun_facts_cosmos[random.randint(0, 99)])
+    print("\nDid you know?\nFun Fact: #%s" % fun_facts_cosmos[random.randint(0, 99)])
 
 #-------------------------------------------------------------------------------
 
@@ -363,55 +375,66 @@ def printFunFact():
 def printSelectedFile(pathToFile, name):
     nameLength = len(name)
     print('\n\n\
-======================' + nameLength*'=' + '\n\
-=== selected %s file ===\n\
-======================' % (name) + nameLength*'=' + '\n\n%s\n' % (pathToFile))
+========' + nameLength*'=' + '\n\
+=== %s ===\n\
+========' % (name) + nameLength*'=' + '\n%s' % (pathToFile))
 
 
-def printNewFile(fileName, name):
+def printCustomMessage(name):
     nameLength = len(name)
-    print('\n\n\n\
-=================' + nameLength*'=' + '\n\
-=== new Stratix file ===\n\
-=================' + nameLength*'=' + '\n\n%s\n' % (fileName))
+    print('\n\n\
+========' + nameLength*'=' + '\n\
+=== %s ===\n\
+========' % (name) + nameLength*'=')
 
 
 def isTarfileGood(pathToFileInRes):
     try:
-        with tarfile.open(pathToFileInRes, 'r') as tar:
+        tar = tarfile.open(pathToFileInRes, 'r')
+        try:
             members = tar.getmembers()
-        return True
-    except (tarfile.TarError) as e:
-        #print("\nTarfile corrupted ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
-        return False
+            tar.close()
+            return True
+        except (tarfile.TarError) as e:
+            #print("\nTarfile corrupted ERROR: %s in:\n%s" % (e, pathToFileInRes))
+            return False
+        finally:
+            tar.close()
     except (Exception) as e:
-        #print("\nTarfile ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
+        #print("\nTarfile ERROR: %s in:\n%s" % (e, pathToFileInRes))
         return False
-    return False
 
 
 def extractTarfile(pathToDir, pathToFileInRes):
     try:
-        with tarfile.open(pathToFileInRes, 'r') as tar:
+        tar = tarfile.open(pathToFileInRes, 'r')
+        try:
             tar.extractall(path = pathToDir)
-    except (tarfile.TarError) as e:
-        print("\nTarfile extraction ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
-        pressEnterToExit()
+            tar.close()
+        except (tarfile.TarError) as e:
+            print("\nTarfile extraction ERROR: %s in:\n%s" % (e, pathToFileInRes))
+            pressEnterToExit()
+        finally:
+            tar.close()
     except (Exception) as e:
-        print("\nTarfile extraction ERROR: %s in:\n%s\n" % (e, pathToFileInRes))
+        print("\nTarfile extraction ERROR: %s in:\n%s" % (e, pathToFileInRes))
         pressEnterToExit()
 
 
 def createTarfile(pathToDir, fileName):
     try:
-        with tarfile.open(fileName, 'w') as tar:
+        tar = tarfile.open(fileName, 'w')
+        try:
             for item in listDirectory(pathToDir):
                 tar.add(os.path.join(pathToDir, item), arcname = item)
-    except (tarfile.TarError) as e:
-        print("\nTarfile creation ERROR: %s in:\n%s\n" % (e, fileName))
-        pressEnterToExit()
+            tar.close()
+        except (tarfile.TarError) as e:
+            print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
+            pressEnterToExit()
+        finally:
+            tar.close()
     except (Exception) as e:
-        print("\nTarfile creation ERROR: %s in:\n%s\n" % (e, fileName))
+        print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
         pressEnterToExit()
 
 
@@ -420,9 +443,9 @@ def createDir(pathToDir):
         try:
             os.mkdir(pathToDir)
         except (OSError) as e:
-            print("\nDirectory creation ERROR: %s - %s\n" % (e.filename, e.strerror))
+            print("\nDirectory creation ERROR: %s - %s" % (e.filename, e.strerror))
         except (Exception) as e:
-            print("\nDirectory creation ERROR: %s\n" % (e))
+            print("\nDirectory creation ERROR: %s" % (e))
 
 
 def removeDir(pathToDir):
@@ -430,26 +453,26 @@ def removeDir(pathToDir):
         try:
             shutil.rmtree(pathToDir)
         except (shutil.Error, OSError, IOError, Exception) as e:
-            print("\nDirectory removal ERROR: %s\n" % (e))
+            print("\nDirectory removal ERROR: %s" % (e))
 
 
 def renameFile(fileNameOld, fileNameNew):
     try:
         os.rename(fileNameOld, fileNameNew)
     except (OSError) as e:
-        print("\nFile rename ERROR: %s - %s\n" % (e.filename, e.strerror))
+        print("\nFile rename ERROR: %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
-        print("\nFile rename ERROR: %s\n" % (e))
+        print("\nFile rename ERROR: %s" % (e))
 
 
 def removeFile2(pathToDir, fileName):
     try:
         os.remove(os.path.join(pathToDir, fileName))
-        print("\n\n%s deleted from:\t%s" % (fileName, pathToDir))
+        print("\n\n%s\t deleted from:\t%s" % (fileName, pathToDir))
     except (OSError) as e:
-        print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
+        print("\nFile remove ERROR: %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
-        print("\nFile remove ERROR: %s\n" % (e))
+        print("\nFile remove ERROR: %s" % (e))
 
 
 def removeFile(pathToFile):
@@ -457,11 +480,11 @@ def removeFile(pathToFile):
     fileName = os.path.basename(pathToFile)
     try:
         os.remove(pathToFile)
-        print("%s deleted from:\t%s" % (fileName, pathToDir))
+        print("%s\t deleted from:\t%s" % (fileName, pathToDir))
     except (OSError) as e:
-        print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
+        print("\nFile remove ERROR: %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
-        print("\nFile remove ERROR: %s\n" % (e))
+        print("\nFile remove ERROR: %s" % (e))
 
 
 def listDirectory(pathToDir):
@@ -469,64 +492,12 @@ def listDirectory(pathToDir):
     try:
         listDir = os.listdir(pathToDir)
     except (OSError) as e:
-        print("\nDirectory listing ERROR: %s - %s\n" % (e.filename, e.strerror))
+        print("\nDirectory listing ERROR: %s - %s" % (e.filename, e.strerror))
         pressEnterToExit()
     except (Exception) as e:
-        print("\nDirectory listing ERROR: %s\n" % (e))
+        print("\nDirectory listing ERROR: %s" % (e))
         pressEnterToExit()
     return listDir
-
-#-------------------------------------------------------------------------------
-
-
-#===============================================================================
-# functions to calculate checksum
-#===============================================================================
-
-def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
-    fileNameNew = ""
-    if os.path.isfile(fileNameTemp):
-        try:
-            zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameTemp)).decode(sys.stdout.encoding).strip()
-            #print('\nzutil output:\n%s\n' % (zutilOutput))
-
-            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
-            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
-            checksumNew = fileMatcher.sub(r'\3', zutilOutput).upper()
-            fileNameNew = fileNamePrepend + '0x' + checksumNew + filenameAppend
-        except (Exception) as e:
-            print ("\n\nCalculate checksum ERROR: %s\n" % (e))
-    else:
-        print('\nERROR: Could not find new stratix image file to calculate checksum\n')
-    return fileNameNew
-
-
-def getChecksum(fileNameTemp, fileMatcher):
-    fileNameNew = ""
-    if os.path.isfile(fileNameTemp):
-        try:
-            f = open(fileNameTemp, 'rb')
-            checksum = 1
-            while 1:
-                buffer = f.read(1024)
-                if not buffer:
-                    break
-                checksum = zlib.adler32(buffer, checksum)
-            f.close()
-            checksum = checksum & 0xffffffff
-            #print("%d %s" % (checksum, (hex(checksum))))
-
-            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
-            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
-            checksumNew = '0x' + (hex(checksum)[2:].zfill(8)).upper()
-            fileNameNew = fileNamePrepend + checksumNew + fileNameAppend
-        except (OSError, IOError) as e:
-            print ("\n\nCalculate checksum ERROR: %s - %s\n" % (e.filename, e.strerror))
-        except (Exception) as e:
-            print ("\n\nCalculate checksum ERROR: %s\n" % (e))
-    else:
-        print('\n\nERROR: Could not find new stratix image file to calculate checksum\n')
-    return fileNameNew
 
 #-------------------------------------------------------------------------------
 
@@ -542,9 +513,9 @@ def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher)
             removeFile2(pathToDirTempArtifacts, tempFileArtifacts)
     try:
         shutil.copy2(pathToFileInRes, pathToDirTempArtifacts)
-        print("%s copied to:\t%s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
+        print("%s\t copied to:\t%s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
     except (shutil.Error, OSError, IOError, Exception) as e:
-        print("\nFile copy ERROR: %s\n" % (e))
+        print("\nFile copy ERROR: %s" % (e))
         pressEnterToExit()
 
 
@@ -556,29 +527,39 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
         if os.path.isfile(tempFilePath):
             if fileMatcherInstaller.search(tempFile):
                 try:
-                    with open(tempFilePath, 'r') as f:
+                    f = open(tempFilePath, 'r')
+                    try:
                         fileContent = f.read()
+                        f.close()
                         fileContent = fileMatcher.sub(fileName, fileContent)
-                except (IOError) as e:
-                    print("\nInstaller script reading ERROR: %s - %s\n" % (e.filename, e.strerror))
+                    except (OSError, IOError) as e:
+                        print("\nInstaller script reading ERROR: %s - %s" % (e.filename, e.strerror))
+                    finally:
+                        f.close()
+                except (Exception) as e:
+                    print("\nInstaller script reading ERROR: %s" % (e))
                 try:
-                    with open(tempFilePath, 'w') as f:
+                    f = open(tempFilePath, 'w')
+                    try:
                         f.write(fileContent)
-                except (IOError) as e:
-                    print("\nInstaller script writing ERROR: %s - %s\n" % (e.filename, e.strerror))
-                print("%s updated in:\t%s" % (fileName, tempFilePath))
+                        f.close()
+                    except (OSError, IOError) as e:
+                        print("\nInstaller script writing ERROR: %s - %s" % (e.filename, e.strerror))
+                    finally:
+                        f.close()
+                except (Exception) as e:
+                    print("\nInstaller script writing ERROR: %s" % (e))
+                print("%s\t updated in:\t%s" % (fileName, tempFilePath))
 
 
 def renameStratixFile(fileNameTemp, fileNameNew):
     renameFile(fileNameTemp, fileNameNew)
     if os.path.isfile(fileNameNew) and os.path.getsize(fileNameNew) > 0:
-
-        printNewFile(fileNameNew, 'Stratix')
-
+        printSelectedFile(fileNameNew, 'new Stratix file')
         print('modified: %s\n' % (getLastModificationTimeAsString(fileNameNew)))
     else:
-        print("\nSomething went wrong. New Stratix file not generated correctly...\n")
-        print("\nPlease manually check file: %s\n" % (fileNameTemp))
+        print("\nSomething went wrong. New Stratix file not generated correctly...")
+        print("\nPlease manually check file: %s" % (fileNameTemp))
 
 #-------------------------------------------------------------------------------
 
@@ -601,6 +582,8 @@ def getUnit(variable):
 
 def printProgress(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 1048576.0):
     percent = (copied / fileSize) * 100
+    if percent > 100.0:
+        percent = 100.0
     dataLeft = (fileSize - copied) #Bytes
     timeLeftSeconds = (dataLeft / speedAverage) #Seconds
 
@@ -628,11 +611,116 @@ def printProgress(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 104
 
 
 #===============================================================================
+# functions to calculate checksum
+#===============================================================================
+
+def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
+    fileNameNew = ""
+    if os.path.isfile(fileNameTemp):
+        try:
+            zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameTemp)).decode(sys.stdout.encoding).strip()
+            #print('\nzutil output:\n%s' % (zutilOutput))
+
+            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
+            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
+            checksumNew = fileMatcher.sub(r'\3', zutilOutput).upper()
+            fileNameNew = fileNamePrepend + '0x' + checksumNew + filenameAppend
+        except (Exception) as e:
+            print ("\nCalculate checksum ERROR: %s" % (e))
+    else:
+        print('\nERROR: Could not find new stratix image file to calculate checksum')
+    return fileNameNew
+
+
+def getChecksum(fileNameTemp, fileMatcher):
+    fileNameNew = ""
+    if os.path.isfile(fileNameTemp):
+        try:
+            f = open(fileNameTemp, 'rb')
+            checksum = 1
+            print("\n\ncalculating checksum")
+
+            fileSize = 1
+            try:
+                fileSize = os.stat(fileNameTemp).st_size
+            except (OSError, IOError, Exception) as e:
+                print("\nGetting file info ERROR: %s" % (e))
+            if fileSize <= 0:
+                fileSize = 1
+            timeStarted = time.time()
+            data_step = 131072
+            dataMark = 0
+            time_step = 1.0
+            timeMark = time.time()
+            timeMarkData = 0
+            timeNow = 0
+            timeNowData = 0
+            speedCurrent = 1048576.0
+            speedAverage = 1048576.0
+
+            try:
+                while 1:
+                    buffer = f.read(128*1024)
+                    if not buffer:
+                        break
+                    checksum = zlib.adler32(buffer, checksum)
+
+                    timeNow = time.time()
+                    timeNowData += len(buffer)
+                #update Current Speed
+                    if timeNow >= (timeMark + time_step):
+                        timeDiff = timeNow - timeMark
+                        if timeDiff == 0:
+                            timeDiff = 0.1
+                        dataDiff = timeNowData - timeMarkData
+                        timeMark = timeNow
+                        timeMarkData = timeNowData
+                        speedCurrent = (dataDiff / timeDiff) #Bytes per second
+                #update Average Speed and print progress
+                    if timeNowData >= (dataMark + data_step):
+                        timeDiff = timeNow - timeStarted
+                        if timeDiff == 0:
+                            timeDiff = 0.1
+                        dataMark = timeNowData
+                        speedAverage = (timeNowData / timeDiff) #Bytes per second
+                #print progress
+                        printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
+                printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
+                print()
+
+                f.close()
+            except (OSError, IOError) as e:
+                print("\nCalculate checksum ERROR: %s - %s" % (e.filename, e.strerror))
+            finally:
+                f.close()
+            checksum = checksum & 0xffffffff
+            #print("%d %s" % (checksum, (hex(checksum))))
+
+            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
+            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
+            checksumNew = '0x' + (hex(checksum)[2:].zfill(8)).upper()
+            fileNameNew = fileNamePrepend + checksumNew + fileNameAppend
+        except (Exception) as e:
+            print ("\nCalculate checksum ERROR: %s" % (e))
+    else:
+        print('\nERROR: Could not find new stratix image file to calculate checksum')
+    return fileNameNew
+
+#-------------------------------------------------------------------------------
+
+
+#===============================================================================
 # custom implementation of copyfileobj from shutil LIBRARY (enable displaying copy file progress)
 #===============================================================================
 
 def copyfileobj(fsrc, fdst, src, length=16*1024):
-    fileSize = os.stat(src).st_size
+    fileSize = 1
+    try:
+        fileSize = os.stat(src).st_size
+    except (OSError, IOError, Exception) as e:
+        print("\nGetting file info ERROR: %s" % (e))
+    if fileSize <= 0:
+        fileSize = 1
     timeStarted = time.time()
     data_step = 131072
     dataMark = 0
@@ -643,11 +731,14 @@ def copyfileobj(fsrc, fdst, src, length=16*1024):
     timeNowData = 0
     speedCurrent = 1048576.0
     speedAverage = 1048576.0
+
+    # try:
     while 1:
         buffer = fsrc.read(length)
         if not buffer:
             break
         fdst.write(buffer)
+
         timeNow = time.time()
         timeNowData += len(buffer)
     #update Current Speed
@@ -671,6 +762,13 @@ def copyfileobj(fsrc, fdst, src, length=16*1024):
     printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
     print()
 
+    # except (OSError, IOError) as e:
+        # print("\nFile copy ERROR: %s - %s" % (e.filename, e.strerror))
+        # pressEnterToExit()
+    # finally:
+        # fdst.close()
+        # fsrc.close()
+
 #-------------------------------------------------------------------------------
 
 
@@ -679,12 +777,15 @@ def copyfileobj(fsrc, fdst, src, length=16*1024):
 #===============================================================================
 
 def getFileFromArtifactory(pathToFile, pathToFileInRes):
+    import requests
     try:
         response = requests.get(pathToFile, stream = True)
         response.raise_for_status()
         print("downloading file to %s" % os.path.dirname(pathToFileInRes))
         fileSize = int(response.headers['Content-length'])
-        with open(pathToFileInRes, 'wb') as f:
+        try:
+            f = open(pathToFileInRes, 'wb')
+
             timeStarted = time.time()
             data_step = 131072
             dataMark = 0
@@ -695,39 +796,50 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
             timeNowData = 0
             speedCurrent = 1048576.0
             speedAverage = 1048576.0
-            while 1:
-                buffer = response.raw.read(128)
-                if not buffer:
-                    break
-                f.write(buffer)
-                timeNow = time.time()
-                timeNowData += len(buffer)
-            #update Current Speed
-                if timeNow >= (timeMark + time_step):
-                    timeDiff = timeNow - timeMark
-                    if timeDiff == 0:
-                        timeDiff = 0.1
-                    dataDiff = timeNowData - timeMarkData
-                    timeMark = timeNow
-                    timeMarkData = timeNowData
-                    speedCurrent = (dataDiff / timeDiff) #Bytes per second
-            #update Average Speed and print progress
-                if timeNowData >= (dataMark + data_step):
-                    timeDiff = timeNow - timeStarted
-                    if timeDiff == 0:
-                        timeDiff = 0.1
-                    dataMark = timeNowData
-                    speedAverage = (timeNowData / timeDiff) #Bytes per second
-            #print progress
-                    printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
-            printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
-            print()
+
+            try:
+                while 1:
+                    buffer = response.raw.read(128)
+                    if not buffer:
+                        break
+                    f.write(buffer)
+
+                    timeNow = time.time()
+                    timeNowData += len(buffer)
+                #update Current Speed
+                    if timeNow >= (timeMark + time_step):
+                        timeDiff = timeNow - timeMark
+                        if timeDiff == 0:
+                            timeDiff = 0.1
+                        dataDiff = timeNowData - timeMarkData
+                        timeMark = timeNow
+                        timeMarkData = timeNowData
+                        speedCurrent = (dataDiff / timeDiff) #Bytes per second
+                #update Average Speed and print progress
+                    if timeNowData >= (dataMark + data_step):
+                        timeDiff = timeNow - timeStarted
+                        if timeDiff == 0:
+                            timeDiff = 0.1
+                        dataMark = timeNowData
+                        speedAverage = (timeNowData / timeDiff) #Bytes per second
+                #print progress
+                        printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
+                printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
+                print()
+
+                f.close()
+            except (OSError, IOError) as e:
+                print("\nFile download ERROR: %s - %s" % (e.filename, e.strerror))
+                pressEnterToExit()
+            finally:
+                f.close()
+        except (Exception) as e:
+            print("\nFile download ERROR: %s - %s" % (e))
+            pressEnterToExit()
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-        print("\nFile download ERROR: %s\n" % (e))
+        print("\nFile download ERROR: %s" % (e))
         pressEnterToExit()
-    except (IOError) as e:
-        print("\nFile download ERROR: %s - %s\n" % (e.filename, e.strerror))
-        pressEnterToExit()
+
 
 
 def getFileFromNetwork(pathToFile, pathToDirRes):
@@ -736,7 +848,7 @@ def getFileFromNetwork(pathToFile, pathToDirRes):
         #shutil.copy2(pathToFile, pathToDirRes)
         copy2(pathToFile, pathToDirRes)
     except (shutil.Error, OSError, IOError, Exception) as e:
-        print("\nFile copy ERROR: %s\n" % (e))
+        print("\nFile copy ERROR: %s" % (e))
         pressEnterToExit()
 
 
@@ -754,6 +866,19 @@ def isFileInResources(pathToFileInRes):
 
 def isFileAvailable(pathToFile, pathIsUrl):
     if pathIsUrl:
+        try:
+            import requests
+        except (ImportError, Exception) as e:
+            print("\n%s" % e)
+            print("Script will now attempt to install required module")
+            pressEnterToContinue()
+            installRequests()
+        try:
+            import requests
+        except (ImportError, Exception) as e:
+            print("\n%s\nCould not get requests module from pypi.org" % e)
+            print("If you need to get Stratix or Nahka file from the web you will need to manually download it to the local directory (and add path to it in the ini file)\n")
+            pressEnterToContinue()
         statusCode = 404
         try:
             response = requests.head(pathToFile)
@@ -761,7 +886,7 @@ def isFileAvailable(pathToFile, pathIsUrl):
             statusCode = response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in parentheses...
             return statusCode
         except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-            print("Request Header ERROR: %s\n[ status code: %s ]\nYou probably need authentication to download that file...\n" % (e, statusCode))
+            print("Request Header ERROR: %s[ status code: %s ]\nYou probably need authentication to download that file..." % (e, statusCode))
             return False
     else:
         if os.path.isfile(pathToFile):
@@ -775,7 +900,7 @@ def getFileNameFromURL(pathToFile, fileMatcher):
     try:
         fileName = fileMatcher.sub(r'\1\2\3', pathToFile)
     except (re.error, Exception) as e:
-        print("\n%s\n\nGetting file name from URL ^^^ABOVE ERROR: %s\n(Please specify correct fileMatcher as 5th parameter in \"handleGettingFile\" function)" % (pathToFile, e))
+        print("\n%s\nGetting file name from URL ^^^ABOVE ERROR: %s\n(Please specify correct fileMatcher as 5th parameter in \"handleGettingFile\" function)" % (pathToFile, e))
     return fileName
 
 
@@ -795,10 +920,9 @@ def isPathUrl(pathToFile, urlMatcher):
 
 
 def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = None):
+    printSelectedFile(pathToFile, name)
     pathIsUrl = isPathUrl(pathToFile, urlMatcher)
     pathToFileInRes = getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher)
-
-    printSelectedFile(pathToFile, name)
 
     fileIsAvailable = isFileAvailable(pathToFile, pathIsUrl)
     fileIsInResources = isFileInResources(pathToFileInRes)
@@ -815,13 +939,13 @@ def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = 
             getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes)
     elif fileIsInResources:
         if fileIsGood:
-            print("Could not find the file in the specified location, but the file is present in %s\n" % (pathToDirRes))
+            print("\nCould not find the file in the specified location, but the file is present in %s\n" % (pathToDirRes))
             pressEnterToContinue()
         else:
-            print("Could not find file in the specified location - the file is present in %s but it is corrupted\n" % (pathToDirRes))
+            print("\nCould not find file in the specified location - the file is present in %s but it is corrupted\n" % (pathToDirRes))
             pressEnterToExit()
     else:
-        print("Could not find anything! Please specify possible file locations in the ini file...\n")
+        print("\nCould not find anything! Please specify possible file locations in the ini file...\n")
         pressEnterToExit()
     return pathToFileInRes
 
@@ -834,7 +958,8 @@ def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = 
 
 def createNewIniFile(pathToFile):
     try:
-        with open(pathToFile, 'w') as f:
+        f = open(pathToFile, 'w')
+        try:
             f.write("\n\
 The script will search this file line by line looking for the last occurrence of Nahka or Stratix image files.\n\n\
 \
@@ -847,7 +972,8 @@ C:\\LocalDir\n\n\
 \
 1. if C:\\LocalDir contains Nahka file it will copy it and download Stratix file from artifactory\n\
 2. if C:\\LocalDir is empty it will copy newest Nahka file from v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka directory and download Stratix file from artifactory\n\
-3. but if C:\LocalDir contains Nahka and Stratix image it will copy both of them from C:\\LocalDir\n\n\
+3. but if C:\LocalDir contains Nahka and Stratix image it will copy both of them from C:\\LocalDir\n\
+4. Nahka file in stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib path will be ignored because it has no use\n\n\
 \
 You can keep a lot of helper links in this file but remember to put them above the ones desired for current build.\n\
 Script will always save the last found occurrence of Nahka or Stratix file location - so place your desired links at the very bottom!!!\n\n\
@@ -858,23 +984,35 @@ If you will delete this file - a new one will be created.\n\n\
 \
 You can now put your links below (you can also delete this whole message - not recommended).\n\n\n\
 ")
-    except (IOError) as e:
-        print("\nInifile creation ERROR: %s - %s\n" % (e.filename, e.strerror))
-
+            f.close()
+        except (OSError, IOError) as e:
+            print("\nInifile creation ERROR: %s - %s" % (e.filename, e.strerror))
+        finally:
+            f.close()
+    except (Exception) as e:
+        print("\nInifile creation ERROR: %s" % (e))
 
 def loadIniFileIntoList(pathToFile):
     if os.path.isfile(pathToFile):
         try:
-            with open(pathToFile, 'r') as f:
-                return f.readlines()
-        except (IOError) as e:
-            print("\nInifile loading ERROR: %s - %s\n" % (e.filename, e.strerror))
-    print("\nInitialization file not found...\n")
+            f = open(pathToFile, 'r')
+            try:
+                linesList = f.readlines()
+                f.close()
+                return linesList
+            except (OSError, IOError) as e:
+                print("\nInifile loading ERROR: %s - %s" % (e.filename, e.strerror))
+                return []
+            finally:
+                f.close()
+        except (Exception) as e:
+            print("\nInifile loading ERROR: %s" % (e))
+            return []
+    print("\nInitialization file not found...")
     createNewIniFile(pathToFile)
-    print("%s file has been created!!!" % (pathToFile))
-    print("now you will be able to specify location of Nahka and Stratix files in there\n")
-    print("In the first run this script will search for Nahka and Stratix files in the current working directory (%s)\n" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
-    print("Every next time it will search for Nahka and Stratix files in locations defined by you in the ini file...\n")
+    print("%s file has been created!!!\n" % (pathToFile))
+    print("In the first run this script will search for Nahka and Stratix files in the current working directory (%s)" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
+    print("Every next time it will search for Nahka and Stratix files in locations defined by you in the ini file (%s)" % (pathToFile))
     pressEnterToContinue()
     return []
 
@@ -888,7 +1026,7 @@ def getLastModificationTime(pathToFile):
     try:
         secondsSinceEpoch = os.path.getmtime(pathToFile)
     except (OSError) as e:
-        print("\nGetting file info ERROR: %s - %s\n" % (e.filename, e.strerror))
+        print("\nGetting file info ERROR: %s - %s" % (e.filename, e.strerror))
         pressEnterToExit()
     return secondsSinceEpoch
 
@@ -966,16 +1104,16 @@ def main():
 
     printFunFact()
 
-    pathToFileInResNahka = handleGettingFile(pathToFileNahka, pathToDirRes, 'Nahka', urlMatcher)
-    pathToFileInResStratix = handleGettingFile(pathToFileStratix, pathToDirRes, 'Stratix', urlMatcher, fileMatcherStratix)
+    pathToFileInResNahka = handleGettingFile(pathToFileNahka, pathToDirRes, 'selected Nahka file', urlMatcher)
+    pathToFileInResStratix = handleGettingFile(pathToFileStratix, pathToDirRes, 'selected Stratix file', urlMatcher, fileMatcherStratix)
 
 
     extractTarfile(pathToDirTemp, pathToFileInResStratix)
     replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInResNahka, fileMatcherNahka)
     setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInResNahka, fileMatcherInstaller, fileMatcherNahka)
     createTarfile(pathToDirTemp, fileNameStratixTemp)
-
     removeDir(pathToDirTemp)
+
     # fileNameStratixNew = getChecksumUsingZutil(fileNameStratixTemp, fileMatcher, path_to_zutil)
     fileNameStratixNew = getChecksum(fileNameStratixTemp, fileMatcher)
 
