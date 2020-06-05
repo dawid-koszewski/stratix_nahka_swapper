@@ -4,7 +4,7 @@
 # author:   dawid.koszewski@nokia.com
 # date:     2019.10.30
 # update:   2019.11.11
-# version:  01m
+# version:  01n
 #
 # written in Notepad++
 #
@@ -113,7 +113,8 @@ def copyfile(src, dst, *, follow_symlinks=True):
         with open(src, 'rb') as fsrc:
             with open(dst, 'wb') as fdst:
                 #copyfileobj(fsrc, fdst)
-                copyfileobj(fsrc, fdst, printProgress, src) # MODIFIED TO CALL USER DEFINED FUNCTION (dawid.koszewski@nokia.com)
+                #copyfileobj(fsrc, fdst, printProgress, src) # MODIFIED TO CALL USER DEFINED FUNCTION (dawid.koszewski@nokia.com)
+                copyfileobj(fsrc, fdst, src)
     return dst
 
 
@@ -236,20 +237,34 @@ def copy2(src, dst, *, follow_symlinks=True):
 # custom implementation of copyfileobj from shutil LIBRARY (enable displaying copy file progress)
 #===============================================================================
 
-def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
-    fileSize = os.stat(src).st_size / 1048576
-    copied = 0
+#def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
+def copyfileobj(fsrc, fdst, src, length=16*1024):
+    fileSize = os.stat(src).st_size
     tmp = 0
+    copied = 0
+    step = 131072
+    time1 = time.time()
+    time2 = 0
+    timeStep = 1.0
+    time1data = 0
+    speed = 131072.0
     while 1:
         buf = fsrc.read(length)
         if not buf:
             break
         fdst.write(buf)
         copied += len(buf)
-        if copied >= (tmp + 131072):
+        time2 = time.time()
+        if time2 >= (time1 + timeStep):
+            timeDiff = time2 - time1 #can differ slightly from timeStep
+            dataDiff = copied - time1data
+            time1 = time2
+            time1data = copied
+            speed = (dataDiff / timeDiff) #Bytes per second
+        if copied >= (tmp + step):
             tmp = copied
-            callback(copied, fileSize)
-    callback(copied, fileSize)
+            printProgress(copied, fileSize, speed)
+    printProgress(copied, fileSize, speed)
     print()
 
 #-------------------------------------------------------------------------------
@@ -259,9 +274,19 @@ def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
 # function to print progress bar
 #===============================================================================
 
-def printProgress(copied, fileSize):
-    copied = copied / 1048576
+def printProgress(copied, fileSize, speed = 131072.0):
     percent = (copied / fileSize) * 100
+    dataLeft = (fileSize - copied) #Bytes
+    timeLeftSeconds = (dataLeft / speed) #Seconds
+
+    timeLeftHours = timeLeftSeconds / 3600
+    timeLeftSeconds = timeLeftSeconds % 3600
+    timeLeftMinutes = timeLeftSeconds / 60
+    timeLeftSeconds = timeLeftSeconds % 60
+
+    copied = copied / 1048576 #MBytes
+    fileSize = fileSize / 1048576 #MBytes
+    speed = speed / 1048576 #MBytes per second
     padding = len(str(int(fileSize)))
 
     symbolDone = '='
@@ -270,9 +295,10 @@ def printProgress(copied, fileSize):
     sizeDone = int((percent / 100) * sizeTotal)
     sizeLeft = sizeTotal - sizeDone
     progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
-    sys.stdout.write('\r%3d%% %s %*.*dMB / %*.*dMB' % (percent, progressBar, padding, 0, copied, padding, 0, fileSize))
+    #sys.stdout.write("\033[K") # Clear to the end of line #depends on terminal...
+    sys.stdout.write('\r%3d%% %s %*.*dMB / %*.*dMB %*.*fMB/s %*.*dh%*.*dm%*.*ds' % (percent, progressBar, padding, 0, copied, padding, 0, fileSize, 5, 1, speed, 2, 1, timeLeftHours, 2, 2, timeLeftMinutes, 2, 2, timeLeftSeconds))
     sys.stdout.flush()
-    time.sleep(0.01) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
+    #time.sleep(0.01) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
 
 #-------------------------------------------------------------------------------
 
@@ -375,7 +401,7 @@ def renameFile(fileNameOld, fileNameNew):
 def removeFile2(pathToDir, fileName):
     try:
         os.remove(os.path.join(pathToDir, fileName))
-        print("\n\n%s deleted from: %s" % (fileName, pathToDir))
+        print("\n\n%s deleted from:\t%s" % (fileName, pathToDir))
     except (OSError) as e:
         print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
     except (Exception) as e:
@@ -387,7 +413,7 @@ def removeFile(pathToFile):
     fileName = os.path.basename(pathToFile)
     try:
         os.remove(pathToFile)
-        print("%s deleted from: %s" % (fileName, pathToDir))
+        print("%s deleted from:\t%s" % (fileName, pathToDir))
     except (OSError) as e:
         print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
     except (Exception) as e:
@@ -574,26 +600,40 @@ def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
 #===============================================================================
 
 def getFileFromArtifactory(pathToFile, pathToFileInRes):
-    print("downloading file to %s" % os.path.dirname(pathToFileInRes))
     try:
-        resp = requests.get(pathToFile, stream = True)
-        resp.raise_for_status()
-        fileSize = int(resp.headers['Content-length']) / 1048576
+        response = requests.get(pathToFile, stream = True)
+        response.raise_for_status()
+
+        print("downloading file to %s" % os.path.dirname(pathToFileInRes))
+
+        fileSize = int(response.headers['Content-length'])
         with open(pathToFileInRes, 'wb') as f:
-            copied = 0
             tmp = 0
-            buffer = resp.raw.read(128)
+            copied = 0
+            step = 131072
+            time1 = time.time()
+            time2 = 0
+            timeStep = 1.0
+            time1data = 0
+            speed = 131072.0
+            buffer = response.raw.read(128)
             copied += len(buffer)
             while buffer:
                 f.write(buffer)
-                buffer = resp.raw.read(128)
+                buffer = response.raw.read(128)
                 copied += len(buffer)
-                if copied >= (tmp + 131072):
+                time2 = time.time()
+                if time2 >= (time1 + timeStep):
+                    timeDiff = time2 - time1
+                    dataDiff = copied - time1data
+                    time1 = time2
+                    time1data = copied
+                    speed = (dataDiff / timeDiff) #Bytes per second
+                if copied >= (tmp + step):
                     tmp = copied
-                    printProgress(copied, fileSize)
-            printProgress(copied, fileSize)
+                    printProgress(copied, fileSize, speed)
+            printProgress(copied, fileSize, speed)
         print()
-        print('modified on: %s (on server)' % (resp.headers['last-modified']))
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
         print("\nFile download ERROR: %s\n" % (e))
         pressEnterToExit()
@@ -628,12 +668,15 @@ def isFileAvailable(pathToFile, pathIsUrl):
     if pathIsUrl:
         try:
             response = requests.head(pathToFile)
-            return response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in braces...
+            print('modified: %s (on server)\n' % (response.headers['last-modified']))
+            return response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in parentheses...
         except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
             print("%s\n\nYou probably need authentication to download that file...\n" % (e))
             return False
     else:
-        return os.path.isfile(pathToFile)
+        if os.path.isfile(pathToFile):
+            print('modified: %s\n' % (getLastModificationTimeAsString(pathToFile)))
+            return True
     return False
 
 
@@ -669,15 +712,15 @@ def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = 
     if fileIsAvailable:
         if fileIsInResources:
             if fileIsGood:
-                print("file already present in %s" % (pathToDirRes))
+                print("file already present in %s\n" % (pathToDirRes))
             else:
-                print("file already present in the %s but it is corrupted - attempting to get a fresh new copy" % (pathToDirRes))
+                print("file already present in the %s but it is corrupted - attempting to get a fresh new copy\n" % (pathToDirRes))
                 getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes)
         else:
             getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes)
     elif fileIsInResources:
         if fileIsGood:
-            print("Could not find file in the specified location, but the file is present in %s\n" % (pathToDirRes))
+            print("Could not find the file in the specified location, but the file is present in %s\n" % (pathToDirRes))
             pressEnterToContinue()
         else:
             print("Could not find file in the specified location - the file is present in %s but it is corrupted\n" % (pathToDirRes))
@@ -685,8 +728,6 @@ def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = 
     else:
         print("Could not find anything! Please specify possible file locations in the ini file...\n")
         pressEnterToExit()
-
-    print('modified on: %s\n' % (getLastModificationTimeAsString(pathToFileInRes)))
     return pathToFileInRes
 
 #-------------------------------------------------------------------------------
@@ -703,7 +744,7 @@ def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher)
             removeFile2(pathToDirTempArtifacts, tempFileArtifacts)
     try:
         shutil.copy2(pathToFileInRes, pathToDirTempArtifacts)
-        print("%s copied to: %s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
+        print("%s copied to:\t%s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
     except (shutil.Error, OSError, IOError, Exception) as e:
         print("\nFile copy ERROR: %s\n" % (e))
         pressEnterToExit()
@@ -727,7 +768,7 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
                         f.write(fileContent)
                 except (IOError) as e:
                     print("\nInstaller script writing ERROR: %s - %s\n" % (e.filename, e.strerror))
-                print("%s updated in: %s" % (fileName, tempFilePath))
+                print("%s updated in:\t%s" % (fileName, tempFilePath))
 
 
 def renameStratixFile(fileNameTemp, fileNameNew):
@@ -736,7 +777,7 @@ def renameStratixFile(fileNameTemp, fileNameNew):
 
         printNewFile(fileNameNew, 'Stratix')
 
-        print('modified on: %s\n' % (getLastModificationTimeAsString(fileNameNew)))
+        print('modified: %s\n' % (getLastModificationTimeAsString(fileNameNew)))
     else:
         print("\nSomething went wrong. New Stratix file not generated correctly\n")
 
