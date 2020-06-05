@@ -3,8 +3,8 @@
 #-------------------------------------------------------------------------------
 # author:   dawid.koszewski@nokia.com
 # date:     2019.10.30
-# update:   2019.11.07
-# version:  01i
+# update:   2019.11.08
+# version:  01j
 #
 # written in Notepad++
 #
@@ -20,9 +20,18 @@ import os
 import time
 import subprocess
 import shutil
-import wget
+
 import tarfile
 import zlib
+
+try:
+    import wget
+except ImportError as e:
+    print("%s" % e)
+    print("Script will now attempt to install required module: %s" % e.name)
+    input("\nPress Enter to continue...\n")
+    subprocess.run('pip install wget')
+import wget
 
 
 #-------------------------------------------------------------------------------
@@ -94,7 +103,7 @@ def copyfile(src, dst, *, follow_symlinks=True):
         with open(src, 'rb') as fsrc:
             with open(dst, 'wb') as fdst:
                 #copyfileobj(fsrc, fdst)
-                copyfileobj(fsrc, fdst, callback, src) # MODIFIED TO CALL USER DEFINED FUNCTION (dawid.koszewski@nokia.com)
+                copyfileobj(fsrc, fdst, printProgress, src) # MODIFIED TO CALL USER DEFINED FUNCTION (dawid.koszewski@nokia.com)
     return dst
 
 
@@ -217,12 +226,28 @@ def copy2(src, dst, *, follow_symlinks=True):
 # custom implementation of copyfileobj from shutil LIBRARY (display copy file progress)
 #===============================================================================
 
-def callback(copied, fileSize):
+
+#wget
+#100% [......................................................................] 185896960 / 185896960
+
+
+def printProgress(copied, fileSize):
     copied = copied / 1048576
     percent = (copied / fileSize) * 100
-    sys.stdout.write('\r%dMB of %dMB (%d %%)' % (copied, fileSize, percent))
-    sys.stdout.flush()
+    padding = len(str(int(fileSize)))
 
+    symbolDone = '='
+    symbolLeft = '-'
+    sizeTotal = 20
+    sizeDone = int((percent / 100) * sizeTotal)
+    sizeLeft = sizeTotal - sizeDone
+    progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
+
+#1. dodac sprawdzenie rozmiaru konsoli
+#2. DONE dodac sprawdzenie dlugosci stringa z rozmiarem pliku aby go przekazac jako formatowanie
+    sys.stdout.write('\r%3d%% %s %*.*dMB / %*.*dMB' % (percent, progressBar, padding, 0, copied, padding, 0, fileSize))
+    sys.stdout.flush()
+    time.sleep(0.01) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
 
 def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
     fileSize = os.stat(src).st_size / 1048576
@@ -234,7 +259,7 @@ def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
             break
         fdst.write(buf)
         copied += len(buf)
-        if copied >= (tmp + 1048576):
+        if copied >= (tmp + 131072):
             tmp = copied
             callback(copied, fileSize)
     callback(copied, fileSize)
@@ -250,6 +275,17 @@ def copyfileobj(fsrc, fdst, callback, src, length=16*1024):
 def pressEnterToExit():
     input("\nPress Enter to exit...\n")
     sys.exit()
+
+
+def checkTarfileIntegrity(pathToFileInRes):
+    try:
+        with tarfile.open(pathToFileInRes, 'r') as tar:
+            members = tar.getmembers()
+    except (Exception) as e:
+        print ("\nERROR: Tarfile is corrupted!!!")
+        #pressEnterToExit()
+        return False
+    return True
 
 
 def extractTarfile(pathToDir, pathToFileInRes):
@@ -277,6 +313,24 @@ def createDir(pathToDir):
             os.mkdir(pathToDir)
         except OSError as e:
             print("\nDirectory creation ERROR: %s - %s\n" % (e.filename, e.strerror))
+
+
+def removeFile2(pathToDir, fileName):
+    try:
+        os.remove(os.path.join(pathToDir, fileName))
+        print("\n\n%s has been successfully deleted from: %s" % (fileName, pathToDir))
+    except OSError as e:
+        print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
+
+
+def removeFile(pathToFile):
+    pathToDir = os.path.dirname(pathToFile)
+    fileName = os.path.basename(pathToFile)
+    try:
+        os.remove(pathToFile)
+        print("%s has been successfully deleted from: %s" % (fileName, pathToDir))
+    except OSError as e:
+        print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
 
 
 def removeDir(pathToDir):
@@ -442,11 +496,11 @@ def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
 def getFileNameFromLink(pathToFile, fileMatcher):
     return re.sub(fileMatcher, r'\1\2\3', pathToFile)
 
-
 def getFileFromArtifactory(pathToFile, pathToDirRes):
-    print("downloading file to the current working directory resources folder...")
+    print("downloading file to the resources folder in current working directory...")
     try:
         #implement function to list files available under url DIR to get SRM*.tar without having to specify its full name ###################################
+        #use requests library
         wget.download(pathToFile, pathToDirRes)
         print()
     except Exception as e:
@@ -454,7 +508,7 @@ def getFileFromArtifactory(pathToFile, pathToDirRes):
         pressEnterToExit()
 
 def getFileFromNetwork(pathToFile, pathToDirRes):
-    print("copying file to the current working directory resources folder...")
+    print("copying file to the resources folder in current working directory...")
     try:
         #shutil.copy2(pathToFile, pathToDirRes)
         copy2(pathToFile, pathToDirRes)
@@ -462,13 +516,9 @@ def getFileFromNetwork(pathToFile, pathToDirRes):
         print("\nFile copy ERROR: %s\n" % (e))
         pressEnterToExit()
 
+def isPathUrl(pathToFile, urlMatcher):
+    return re.search(urlMatcher, pathToFile)
 
-def isPathUrl(pathToFile):
-    return re.search(r'https://', pathToFile)
-
-############################################
-######## WHEN REFACTOR GOES BAD XXX ########
-############################################
 def getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher):
     pathToFileInRes = ""
     if pathIsUrl:
@@ -486,15 +536,11 @@ def isFileAvailable(pathToFile, pathIsUrl):
     else:
         return os.path.isfile(pathToFile)
 
-
 def isFileInResources(pathToFileInRes):
     return os.path.isfile(pathToFileInRes)
 
-############################################
-######## WHEN REFACTOR GOES BAD XXX ########
-############################################
-def handleGetFile(pathToFile, pathToDirRes, fileMatcher):
-    pathIsUrl = isPathUrl(pathToFile)
+def handleGettingFile(pathToFile, pathToDirRes, urlMatcher, fileMatcher):
+    pathIsUrl = isPathUrl(pathToFile, urlMatcher)
     pathToFileInRes = getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher)
     fileIsAvailable = isFileAvailable(pathToFile, pathIsUrl)
     fileIsInResources = isFileInResources(pathToFileInRes)
@@ -506,23 +552,26 @@ def handleGetFile(pathToFile, pathToDirRes, fileMatcher):
             else:
                 getFileFromNetwork(pathToFile, pathToDirRes)
         else:
-            print("file already present in the current working directory resources folder!")
+            print("file already present in the resources folder in current working directory!")
     elif fileIsInResources:
         print("Could not find file in the specified location, but the file is present in %s\n" % (pathToFileInRes))
         input("\nPress Enter to continue...\n")
     else:
         print("Could not find anything! Please specify possible file locations in the ini file...\n")
         input("\nPress Enter to exit...\n")
-        sys.exit()
     return pathToFileInRes
 
-############################################
-######## WHEN REFACTOR GOES BAD XXX ########
-############################################
-def getFile(pathToFile, pathToDirRes, name, fileMatcher = r''):
+def getFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = r''):
     createDir(pathToDirRes)
     print('\n\n\n === selected %s file ===\n\n%s\n' % (name, pathToFile))
-    pathToFileInRes = handleGetFile(pathToFile, pathToDirRes, fileMatcher)
+    for x in range(0, 3):
+        pathToFileInRes = handleGettingFile(pathToFile, pathToDirRes, urlMatcher, fileMatcher)
+        if not checkTarfileIntegrity(pathToFileInRes):
+            print("Attempting to remove corrupted file and copy it again")
+            removeFile(pathToFileInRes)
+        else:
+            break
+
     print('\n --- file last modified: %s ---\n' % (getLastModificationTimeAsString(pathToFileInRes)))
     return pathToFileInRes
 
@@ -542,12 +591,10 @@ def replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInRes, fileMatcher)
         pressEnterToExit()
     for tempFileArtifacts in listDirTempArtifacts:
         if re.search(fileMatcher, tempFileArtifacts):
-            try:
-                os.remove(os.path.join(pathToDirTempArtifacts, tempFileArtifacts))
-            except OSError as e:
-                print("\nFile remove ERROR: %s - %s\n" % (e.filename, e.strerror))
+            removeFile2(pathToDirTempArtifacts, tempFileArtifacts)
     try:
         shutil.copy2(pathToFileInRes, pathToDirTempArtifacts)
+        print("%s has been successfully copied to: %s" % (os.path.basename(pathToFileInRes), pathToDirTempArtifacts))
     except (shutil.Error, OSError, IOError) as e:
         print("\nFile copy ERROR: %s\n" % (e))
         pressEnterToExit()
@@ -560,7 +607,6 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
     except OSError as e:
         print("\nDirectory listing ERROR: %s - %s\n" % (e.filename, e.strerror))
         pressEnterToExit()
-    print("\n\n")
     fileName = os.path.basename(pathToFileInRes)
     for tempFile in listDirTemp:
         tempFilePath = os.path.join(pathToDirTemp, tempFile)
@@ -613,6 +659,7 @@ def main():
     pathToDirTempArtifacts = r'.\SRM_temp\artifacts'
     fileNameStratixTemp = r'.\SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
+    urlMatcher = r'(https://|http://|ftp://)'
     fileMatcher = r'(.*)(0x)([a-fA-F0-9]{8})(.*)'
     fileMatcherNahka = r'(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)'
     fileMatcherStratix = r'.*(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar).*'
@@ -623,8 +670,8 @@ def main():
     pathToFileNahka = pathsToLatestFiles.get("pathToLatestFileNahka", "")
     pathToFileStratix = pathsToLatestFiles.get("pathToLatestFileStratix", "")
 
-    pathToFileInResNahka = getFile(pathToFileNahka, pathToDirRes, 'Nahka')
-    pathToFileInResStratix = getFile(pathToFileStratix, pathToDirRes, 'Stratix', fileMatcherStratix)
+    pathToFileInResNahka = getFile(pathToFileNahka, pathToDirRes, 'Nahka', urlMatcher)
+    pathToFileInResStratix = getFile(pathToFileStratix, pathToDirRes, 'Stratix', urlMatcher, fileMatcherStratix)
 
 
     extractTarfile(pathToDirTemp, pathToFileInResStratix)
@@ -644,4 +691,3 @@ if __name__ == '__main__':
     main()
     #time.sleep(3)
     input("\nPress Enter to exit...\n")
-    sys.exit()
