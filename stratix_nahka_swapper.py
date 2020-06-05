@@ -2,12 +2,12 @@
 
 #-------------------------------------------------------------------------------
 # supports:     python 2.6, 2.7
-#               python 3.4 (or newer)
+#               python 3.3 (or newer)
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
 # update:       2019.11.25
-# version:      01x
+# version:      01y (spaghetti edition - due to new feature "sftp" used to list files from other server when running on linux)
 #
 # written in Notepad++
 #
@@ -17,7 +17,6 @@
 
 ################# KNOWN ISSUES: #################
 # - no possibility to install requests module on wrlinb (module is needed to download Stratix from artifactory)
-# - when using in windows environment - executions permission in files are missing
 
 
 # please don't be afraid of this script
@@ -2554,6 +2553,15 @@ def createTarfile(pathToDir, fileName):
         pressEnterToExit()
 
 
+def moveFile(pathFrom, pathTo):
+    try:
+        shutil.move(pathFrom, pathTo)
+    except (OSError) as e:
+        print("\nFile move ERROR: %s - %s" % (e.filename, e.strerror))
+    except (Exception) as e:
+        print("\nFile move ERROR: %s" % (e))
+
+
 def createDir(pathToDir):
     if not os.path.exists(pathToDir):
         try:
@@ -2809,8 +2817,8 @@ def getChecksum(fileNameTemp, fileMatcher):
 
                 f.close()
                 checksum = checksum & 0xffffffff
-                fileNamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
-                fileNameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
+                fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
+                fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
                 #checksumFormatted = '0x' + (hex(checksum)[2:].zfill(8)).upper() #in python 2.7.14 it appends letter L
                 checksumHex = "%x" % checksum
                 checksumFormatted = '0x' + ((checksumHex.zfill(8)).upper())
@@ -2861,7 +2869,7 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
                     try:
                         fileContent = f.read()
                         f.close()
-                        fileContent = fileMatcher.sub(fileName, fileContent)
+                        fileContent = fileMatcher.sub((r'\1%s\5' % (fileName)), fileContent)
                     except (OSError, IOError) as e:
                         print("\nInstaller script reading ERROR: %s - %s" % (e.filename, e.strerror))
                     finally:
@@ -2928,7 +2936,7 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
     try:
         response = requests.get(pathToFile, stream = True)
         response.raise_for_status()
-        print("downloading file to %s" % os.path.dirname(pathToFileInRes))
+        print("downloading file to: %s" % os.path.dirname(pathToFileInRes))
         fileSize = int(response.headers['Content-length'])
         if fileSize <= 0:
             fileSize = 1
@@ -2960,31 +2968,78 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
         print("\nFile download ERROR: %s" % (e))
         pressEnterToExit()
+    #return pathToFileInRes
 
 
-def getFileFromNetwork(pathToFile, pathToDirRes):
-    print("copying file to %s" % (pathToDirRes))
+def getFileFromServerAddress(pathFull, pathToDirRes, fileMatcher):
+    fileName = ""
+    if fileMatcher.search(pathFull):
+        fileName = fileMatcher.sub(r'\2\3\4\5', pathFull)
+        pathFull = fileMatcher.sub(r'\1', pathFull)
+
+    serverAddress, pathToDir = pathFull.split(':')
+
+    if not pathToDir.endswith('/'):
+        pathToDir = pathToDir + '/'
+
+    sftp = subprocess.Popen(['sftp', '%s' % serverAddress], stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1)
+
+    sftp.stdin.write(b'cd %s\n' % pathToDir)
+    sftp.stdin.flush()
+    sftp.stdout.readline()
+    sftp.stdout.flush()
+
+    if not fileName:
+        sftp.stdin.write(b'ls -t1 *-rfsw-image-install_* | head -1\n')
+        sftp.stdin.flush()
+        sftp.stdout.readline()
+        sftp.stdout.flush()
+        fileName = sftp.stdout.readline().decode(sys.stdout.encoding).strip()
+        sftp.stdout.flush()
+
+    sftp.communicate(b'get %s%s' % (pathToDir, fileName))[0].decode(sys.stdout.encoding)
+    sftp.stdin.close()
+    sftp.stdout.close()
+
+    if os.path.isfile(fileName) and os.path.getsize(fileName) > 0:
+        print('\n%s' % (fileName))
+        print('modified: %s\n' % (getLastModificationTimeAsString(fileName)))
+        pathToFileInRes = os.path.join(pathToDirRes, fileName)
+        moveFile(fileName, pathToFileInRes)
+    else:
+        print("\nFile download ERROR: %s" % (serverAddress + ':' + pathToDir + fileName))
+        pressEnterToExit()
+
+    return pathToFileInRes
+
+
+def getFileFromLocalNetwork(pathToFile, pathToDirRes):
+    print("copying file to: %s" % (pathToDirRes))
     try:
         #shutil.copy2(pathToFile, pathToDirRes)
         copy2(pathToFile, pathToDirRes)
     except (shutil.Error, OSError, IOError, Exception) as e:
         print("\nFile copy ERROR: %s" % (e))
         pressEnterToExit()
+    #return os.path.join(pathToDirRes, os.path.basename(pathToFile))
 
 
-def getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes):
+def getFile(pathToFile, pathIsUrl, pathIsServerAddress, pathToDirRes, pathToFileInRes, fileMatcher = None):
     createDir(pathToDirRes)
     if pathIsUrl:
         getFileFromArtifactory(pathToFile, pathToFileInRes)
+    elif pathIsServerAddress:
+        pathToFileInRes = getFileFromServerAddress(pathToFile, pathToDirRes, fileMatcher)
     else:
-        getFileFromNetwork(pathToFile, pathToDirRes)
+        getFileFromLocalNetwork(pathToFile, pathToDirRes)
+    return pathToFileInRes
 
 
 def isFileInResources(pathToFileInRes):
     return os.path.isfile(pathToFileInRes)
 
 
-def isFileAvailable(pathToFile, pathIsUrl):
+def isFileAvailable(pathToFile, pathIsUrl, pathIsServerAddress):
     if pathIsUrl:
         try:
             import requests
@@ -2999,15 +3054,18 @@ def isFileAvailable(pathToFile, pathIsUrl):
             print("\n%s\nCould not get requests module from pypi.org" % e)
             print("If you need to get Stratix or Nahka file from the web you will need to manually download it to the local directory (and add path to it in the ini file)\n")
             pressEnterToExit()
-        statusCode = 404
         try:
             response = requests.head(pathToFile)
-            print('modified: %s (on server)\n' % (response.headers['last-modified']))
-            statusCode = response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in parentheses...
-            return statusCode
+            if response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308):
+                print('modified: %s (on server)\n' % (response.headers['last-modified']))
+                return True
+            else:
+                return False
         except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-            print("Request Header ERROR: %s[ status code: %s ]\nYou probably need authentication to download that file..." % (e, statusCode))
+            print("Request Header ERROR: %s\nYou probably need authentication to download that file..." % (e))
             return False
+    elif pathIsServerAddress:
+        return True #FAKE (spaghetti) - functionality forwarded to next function which is using "sftp as subprocess"
     else:
         if os.path.isfile(pathToFile):
             print('modified: %s\n' % (getLastModificationTimeAsString(pathToFile)))
@@ -3018,51 +3076,54 @@ def isFileAvailable(pathToFile, pathIsUrl):
 def getFileNameFromURL(pathToFile, fileMatcher):
     fileName = ""
     try:
-        fileName = fileMatcher.sub(r'\1\2\3', pathToFile)
+        fileName = fileMatcher.sub(r'\2\3\4\5', pathToFile)
     except (re.error, Exception) as e:
         print("\n%s\nGetting file name from URL ^^^ABOVE ERROR: %s\n(Please specify correct fileMatcher as 5th parameter in \"handleGettingFile\" function)" % (pathToFile, e))
     return fileName
 
 
-def getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher):
+def getPathToFileInRes(pathToFile, pathIsUrl, pathIsServerAddress, pathToDirRes, fileMatcher):
     pathToFileInRes = ""
     if pathIsUrl:
         fileName = getFileNameFromURL(pathToFile, fileMatcher)
         pathToFileInRes = os.path.join(pathToDirRes, fileName)
+    elif pathIsServerAddress: #FAKE (spaghetti) - functionality forwarded to next function which is using "sftp as subprocess"
+        pathToFileInRes = pathToDirRes
     else:
         fileName = os.path.basename(pathToFile)
         pathToFileInRes = os.path.join(pathToDirRes, fileName)
     return pathToFileInRes
 
 
-def isPathUrl(pathToFile, urlMatcher):
-    return urlMatcher.search(pathToFile)
+def isPathMatching(pathToFile, matcher):
+    return matcher.search(pathToFile)
 
 
-def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, fileMatcher = None):
+def handleGettingFile(pathToFile, pathToDirRes, name, urlMatcher, serverMatcher, fileMatcher = None):
     printSelectedFile(pathToFile, name)
-    pathIsUrl = isPathUrl(pathToFile, urlMatcher)
-    pathToFileInRes = getPathToFileInRes(pathToFile, pathIsUrl, pathToDirRes, fileMatcher)
+    pathIsUrl = isPathMatching(pathToFile, urlMatcher)
+    pathIsServerAddress = isPathMatching(pathToFile, serverMatcher)
+    pathToFileInRes = getPathToFileInRes(pathToFile, pathIsUrl, pathIsServerAddress, pathToDirRes, fileMatcher)
 
-    fileIsAvailable = isFileAvailable(pathToFile, pathIsUrl)
+    fileIsAvailable = isFileAvailable(pathToFile, pathIsUrl, pathIsServerAddress)
     fileIsInResources = isFileInResources(pathToFileInRes)
     fileIsGood = isTarfileGood(pathToFileInRes)
 
     if fileIsAvailable:
         if fileIsInResources:
             if fileIsGood:
-                print("file already present in %s\n" % (pathToDirRes))
+                print("file already present in: %s\n" % (pathToDirRes))
             else:
-                print("file already present in the %s but it is corrupted - attempting to get a fresh new copy\n" % (pathToDirRes))
-                getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes)
+                print("file already present in: %s but it is corrupted - attempting to get a fresh new copy\n" % (pathToDirRes))
+                pathToFileInRes = getFile(pathToFile, pathIsUrl, pathIsServerAddress, pathToDirRes, pathToFileInRes, fileMatcher)
         else:
-            getFile(pathToFile, pathIsUrl, pathToDirRes, pathToFileInRes)
+            pathToFileInRes = getFile(pathToFile, pathIsUrl, pathIsServerAddress, pathToDirRes, pathToFileInRes, fileMatcher)
     elif fileIsInResources:
         if fileIsGood:
-            print("\nCould not find the file in the specified location, but the file is present in %s\n" % (pathToDirRes))
+            print("\nCould not find the file in the specified location, but the file is present in: %s\n" % (pathToDirRes))
             pressEnterToContinue()
         else:
-            print("\nCould not find file in the specified location - the file is present in %s but it is corrupted\n" % (pathToDirRes))
+            print("\nCould not find file in the specified location - the file is present in: %s but it is corrupted\n" % (pathToDirRes))
             pressEnterToExit()
     else:
         print("\nCould not find anything! Please specify possible file locations in the ini file...\n")
@@ -3096,7 +3157,7 @@ C:\\LocalDir\n\n\
 \
 When you are running this script in linux console - please specify linux relative or absolute paths, for example:\n\
 ../nahka/tmp/deploy/images/nahka\n\
-/var/fpwork2/some_user/stratix10-aaib/tmp-glibc/deploy/images/stratix10-aaib\n\n\
+some_user@wrlinb225.emea.nsn-net.net:/var/fpwork2/some_user/stratix10-aaib/tmp-glibc/deploy/images/stratix10-aaib\n\n\
 \
 You can keep a lot of helper links in this ini file but remember to put them above the ones desired for current build.\n\
 Script will always pick the last found occurrence of Nahka or Stratix file location - so place your desired paths at the very bottom!!!\n\n\
@@ -3117,6 +3178,7 @@ You can now put your links below (you can also delete this whole message - not r
     except (Exception) as e:
         print("\nInifile creation ERROR: %s" % (e))
 
+
 def loadIniFileIntoList(pathToFile):
     if os.path.isfile(pathToFile):
         try:
@@ -3135,14 +3197,14 @@ def loadIniFileIntoList(pathToFile):
             return []
     createNewIniFile(pathToFile)
     print("\n%s file has been created!!!" % (pathToFile))
-    print("The script will always search for Nahka and Stratix files in locations defined by you in %s" % (pathToFile))
+    print("The script will always search for Nahka and Stratix files in locations defined by you in: %s" % (pathToFile))
     print("\nBy default it will search in the current working directory (%s)" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
     pressEnterToContinue()
     return []
 
 
 def getDateFromNahkaFile(fileMatcher):
-    return lambda f : fileMatcher.sub(r'\2', f)
+    return lambda f : fileMatcher.sub(r'\3', f)
 
 
 def getLastModificationTime(pathToFile):
@@ -3159,28 +3221,92 @@ def getLastModificationTimeAsString(pathToFile):
     return time.ctime(getLastModificationTime(pathToFile))
 
 
-def getPathToLatestFileInDir(pathToDir, matcher, comparator):
+def getPathToFileUnderUrl(url, fileMatcher):
+    pathToFile = ""
+    try:
+        import requests
+    except (ImportError, Exception) as e:
+        print("\n%s" % e)
+        print("Script will now attempt to install required module")
+        pressEnterToContinue()
+        installRequests()
+    try:
+        import requests
+    except (ImportError, Exception) as e:
+        print("\n%s\nCould not get requests module from pypi.org" % e)
+        print("If you need to get Stratix or Nahka file from the web you will need to manually download it to the local directory (and add path to it in the ini file)\n")
+        pressEnterToExit()
+    try:
+        response = requests.get(url, stream = True)
+        if response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308):
+            responseHTML = response.text.splitlines()
+            for line in responseHTML:
+                line = line.strip()
+                if fileMatcher.search(line):
+                    fileName = fileMatcher.sub(r'\2\3\4\5', line)
+                    if url.endswith('/'):
+                        pathToFile = url + fileName
+                    else:
+                        pathToFile = url + '/' + fileName
+                    break
+        else:
+            response.raise_for_status()
+    except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
+        print("Request Header ERROR: %s\nYou probably need authentication to download that file..." % (e))
+    return pathToFile
+
+
+def getPathToLatestFileInDir(pathToDir, fileMatcher, comparator):
     filesList = []
     for item in listDirectory(pathToDir):
         pathToFile = os.path.join(pathToDir, item)
         if os.path.isfile(pathToFile):
-            if matcher.search(item):
+            if fileMatcher.search(item):
                 filesList.append(pathToFile)
     filesList.sort(key = comparator, reverse = False)
     return filesList[-1] if filesList else ""
 
 
-def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
+def getPathToLatestFileOnServer(line, pathMatcher): #FAKE (spaghetti) - functionality forwarded to next function which is using "sftp as subprocess"
+    pathFull = ""
+    if pathMatcher.search(line):
+        pathFull = line
+    return pathFull
+
+
+def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, urlMatcher, serverMatcher, pathMatcherNahka, pathMatcherStratix):
     pathToFileNahka = ""
     pathToFileStratix = ""
     iniFileLinesList = loadIniFileIntoList(pathToFileIni)
     if iniFileLinesList:
         for line in iniFileLinesList:
             line = line.strip()
-            if fileMatcherNahka.search(line):
+#
+#
+# TO BE COMPLETELY REWORKED
+#
+#
+            if serverMatcher.search(line):
+                pathToFileOnServerNahka = getPathToLatestFileOnServer(line, pathMatcherNahka)
+                if pathToFileOnServerNahka:
+                    pathToFileNahka = pathToFileOnServerNahka
+                pathToFileOnServerStratix = getPathToLatestFileOnServer(line, pathMatcherStratix)
+                if pathToFileOnServerStratix:
+                    pathToFileStratix = pathToFileOnServerStratix
+
+            elif fileMatcherNahka.search(line):
                 pathToFileNahka = line
             elif fileMatcherStratix.search(line):
                 pathToFileStratix = line
+
+            elif urlMatcher.search(line):
+                pathToFileUnderUrlNahka = getPathToFileUnderUrl(line, fileMatcherNahka)
+                if pathToFileUnderUrlNahka:
+                    pathToFileNahka = pathToFileUnderUrlNahka
+                pathToFileUnderUrlStratix = getPathToFileUnderUrl(line, fileMatcherStratix)
+                if pathToFileUnderUrlStratix:
+                    pathToFileStratix = pathToFileUnderUrlStratix
+
             elif os.path.isdir(line):
                 pathToLatestFileInDirNahka = getPathToLatestFileInDir(line, fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
                 if pathToLatestFileInDirNahka:
@@ -3188,6 +3314,7 @@ def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
                 pathToLatestFileInDirStratix = getPathToLatestFileInDir(line, fileMatcherStratix, getLastModificationTime)
                 if pathToLatestFileInDirStratix:
                     pathToFileStratix = pathToLatestFileInDirStratix
+
     else:
         pathToFileNahka = getPathToLatestFileInDir('.', fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
         pathToFileStratix = getPathToLatestFileInDir('.', fileMatcherStratix, getLastModificationTime)
@@ -3211,27 +3338,32 @@ def main():
     #----------------------------
     # initial settings of dir and file names used by this script (can be changed to any)
     #----------------------------
-    pathToFileIni = r'stratix_nahka_swapper.ini'
-    pathToDirRes = r'stratix_nahka_swapper_resources'
-    pathToDirTemp = r'SRM_temp_00000000'
-    pathToDirTempArtifacts = os.path.join(pathToDirTemp, r'artifacts')
-    fileNameStratixTemp = r'SRM-rfsw-image-install_z-uber-0x00000000.tar'
+    pathToFileIni           = r'stratix_nahka_swapper.ini'
+    pathToDirRes            = r'stratix_nahka_swapper_resources'
+    pathToDirTemp           = r'SRM_temp_00000000'
+    pathToDirTempArtifacts  = os.path.join(pathToDirTemp, r'artifacts')
+    fileNameStratixTemp     = r'SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
     #----------------------------
     # initial settings of regex patterns
     #----------------------------
-    urlMatcher = re.compile(r'(https://|http://|ftp://)')
-    fileMatcher = re.compile(r'(.*)(0x)([a-fA-F0-9]{1,8})(.*)')
-    fileMatcherNahka = re.compile(r'(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)')
-    fileMatcherStratix = re.compile(r'.*(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar).*')
+    urlMatcher           = re.compile(r'(https://|http://|ftp://)')
+    serverMatcher        = re.compile(r'(wrlin)(.*)(emea.nsn-net.net)')
+    fileMatcherHex       = re.compile(r'(.*)(0x)([a-fA-F0-9]{1,8})(.*)')
+    fileMatcherNahka     = re.compile(r'(.*)(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)(.*)')
+    fileMatcherStratix   = re.compile(r'(.*)(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar)(.*)')
     fileMatcherInstaller = re.compile(r'.*-installer.sh')
+    pathMatcherNahka     = re.compile(r'.*(nahka)([\/\\]{1,2})(tmp)([\/\\]{1,2})(deploy)([\/\\]{1,2})(images)([\/\\]{1,2})(nahka).*')
+    pathMatcherStratix   = re.compile(r'.*(stratix10-aaib)([\/\\]{1,2})(tmp-glibc)([\/\\]{1,2})(deploy)([\/\\]{1,2})(images)([\/\\]{1,2})(stratix10-aaib).*')
+    #pathMatcherNahka     = re.compile(r'.*(nahka).*')
+    #pathMatcherStratix   = re.compile(r'.*(stratix).*')
 
     printDetectedAndSupportedPythonVersion()
 
     #----------------------------
     # paths to latest files found
     #----------------------------
-    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix)
+    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, urlMatcher, serverMatcher, pathMatcherNahka, pathMatcherStratix)
     pathToFileNahka = pathsToLatestFiles.get("pathToLatestFileNahka", "")
     pathToFileStratix = pathsToLatestFiles.get("pathToLatestFileStratix", "")
 
@@ -3240,8 +3372,8 @@ def main():
     #----------------------------
     # paths to files copied to local resources folder used by this script
     #----------------------------
-    pathToFileInResNahka = handleGettingFile(pathToFileNahka, pathToDirRes, 'selected Nahka file', urlMatcher)
-    pathToFileInResStratix = handleGettingFile(pathToFileStratix, pathToDirRes, 'selected Stratix file', urlMatcher, fileMatcherStratix)
+    pathToFileInResNahka = handleGettingFile(pathToFileNahka, pathToDirRes, 'selected Nahka file', urlMatcher, serverMatcher, fileMatcherNahka)
+    pathToFileInResStratix = handleGettingFile(pathToFileStratix, pathToDirRes, 'selected Stratix file', urlMatcher, serverMatcher, fileMatcherStratix)
 
 
     #----------------------------
@@ -3253,8 +3385,8 @@ def main():
     createTarfile(pathToDirTemp, fileNameStratixTemp)
     removeDir(pathToDirTemp)
 
-    # fileNameStratixNew = getChecksumUsingZutil(fileNameStratixTemp, fileMatcher, path_to_zutil)
-    fileNameStratixNew = getChecksum(fileNameStratixTemp, fileMatcher)
+    # fileNameStratixNew = getChecksumUsingZutil(fileNameStratixTemp, fileMatcherHex, path_to_zutil)
+    fileNameStratixNew = getChecksum(fileNameStratixTemp, fileMatcherHex)
     renameStratixFile(fileNameStratixTemp, fileNameStratixNew)
 
 
