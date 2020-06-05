@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.12.02
-# version:      02a
+# update:       2019.12.03
+# version:      02b
 #
 # written in Notepad++
 #
@@ -3185,6 +3185,7 @@ def getPathToFileUnderUrlFromTemplate(PATH, fileMatcher, PATH_ARTIFACTORY_TEMPLA
 # "get file" main handler
 #-------------------------------------------------------------------------------
 def handleGettingFile(pathToDirRes, serverMatcher, urlMatcher, fileMatcher, PATH_ARTIFACTORY_TEMPLATE, PATH, messagePrinted):
+    createDir(pathToDirRes)
     pathToFileInRes = ""
     if serverMatcher.search(PATH):
         pathToFile = PATH
@@ -3296,7 +3297,7 @@ def loadIniFileIntoList(pathToFile):
             return []
     createNewIniFile(pathToFile)
     print("\n%s file has been created!!!" % (pathToFile))
-    print("The script will always search for newest Nahka and Stratix files in locations defined by you in: %s" % (pathToFile))
+    print("\nThe script will always search for newest Nahka and Stratix files in locations defined by you in: %s" % (pathToFile))
     print("\nBy default it will search in the current working directory (%s)" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
     pressEnterToContinue()
     return []
@@ -3321,18 +3322,19 @@ def getPathsFromIniFile(pathToFileIni):
     if iniFile:
         for line in iniFile:
             line = line.strip()
-            if line.find('#') >= 0:
+            commentIndex = line.find('#')
+            if commentIndex == 0:
                 continue
             index = line.find(pathNahka)
-            if index >= 0:
+            if index >= 0 and (index < commentIndex or commentIndex < 0):
                 PATH_NAHKA = getPathFromLine(index, line, pathNahka)
                 continue
             index = line.find(pathStratix)
-            if index >= 0:
+            if index >= 0 and (index < commentIndex or commentIndex < 0):
                 PATH_STRATIX = getPathFromLine(index, line, pathStratix)
                 continue
             index = line.find(pathArtifactoryTemplate)
-            if index >= 0:
+            if index >= 0 and (index < commentIndex or commentIndex < 0):
                 PATH_ARTIFACTORY_TEMPLATE = getPathFromLine(index, line, pathArtifactoryTemplate)
     else:
         PATH_NAHKA = "."
@@ -3387,6 +3389,7 @@ def main():
     PATH_NAHKA = PATHS.get("PATH_NAHKA", "")
     PATH_STRATIX = PATHS.get("PATH_STRATIX", "")
     PATH_ARTIFACTORY_TEMPLATE = PATHS.get("PATH_ARTIFACTORY_TEMPLATE", "")
+
 
 #----------------------------
 # print Fun Fact!
