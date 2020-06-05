@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.11.17
-# version:      01u
+# update:       2019.11.19
+# version:      01w
 #
 # written in Notepad++
 #
@@ -18,6 +18,9 @@
 ################# KNOWN ISSUES: #################
 # - no possibility to install requests module on wrlinb (module is needed to download Stratix from artifactory)
 
+
+# please don't be afraid of this script
+# the main function is located at the very bottom - take a look at it first - everything will become clear
 
 
 #===============================================================================
@@ -120,6 +123,7 @@ def installRequests():
 
 #-------------------------------------------------------------------------------
 
+
 #===============================================================================
 # python version global variables
 #===============================================================================
@@ -127,6 +131,12 @@ def installRequests():
 PYTHON_MAJOR = sys.version_info[0]
 PYTHON_MINOR = sys.version_info[1]
 PYTHON_PATCH = sys.version_info[2]
+
+def printDetectedAndSupportedPythonVersion():
+    if ((PYTHON_MAJOR == 2 and PYTHON_MINOR >= 6) or (PYTHON_MAJOR == 3 and PYTHON_MINOR >= 4)):
+        print("detected python version: %d.%d.%d [SUPPORTED] (2.6, 2.7, >=3.4)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+    else:
+        print("detected python version: %d.%d.%d [NOT OFFICIALLY SUPPORTED] (2.6, 2.7, >=3.4)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
 
 #-------------------------------------------------------------------------------
 
@@ -2469,6 +2479,7 @@ def isTarfileGood(pathToFileInRes):
 
 
 def extractTarfile(pathToDir, pathToFileInRes):
+    print("\n\nextracting tarfile...")
     try:
         tar = tarfile.open(pathToFileInRes, 'r')
         try:
@@ -2485,6 +2496,7 @@ def extractTarfile(pathToDir, pathToFileInRes):
 
 
 def createTarfile(pathToDir, fileName):
+    print("\ncreating new tarfile...")
     try:
         tar = tarfile.open(fileName, 'w')
         try:
@@ -2531,7 +2543,7 @@ def renameFile(fileNameOld, fileNameNew):
 def removeFile2(pathToDir, fileName):
     try:
         os.remove(os.path.join(pathToDir, fileName))
-        print("\n\n%s\t deleted from:\t%s" % (fileName, pathToDir))
+        print("\n%s\t deleted from:\t%s" % (fileName, pathToDir))
     except (OSError) as e:
         print("\nFile remove ERROR: %s - %s" % (e.filename, e.strerror))
     except (Exception) as e:
@@ -2561,6 +2573,192 @@ def listDirectory(pathToDir):
         print("\nDirectory listing ERROR: %s" % (e))
         pressEnterToExit()
     return listDir
+
+
+def getFileSize(pathToFile):
+    fileSize = 1
+    try:
+        fileSize = os.stat(pathToFile).st_size
+    except (OSError, IOError, Exception) as e:
+        print("\nGetting file info ERROR: %s" % (e))
+    if fileSize <= 0:
+        fileSize = 1
+    return fileSize
+
+#-------------------------------------------------------------------------------
+
+
+#===============================================================================
+# functions to print progress bar
+#===============================================================================
+
+def getUnit(variable):
+    units = ['kB', 'MB', 'GB', 'TB']
+    variableUnit = ' B'
+    for unit in units:
+        if variable > 1000:
+            variable /= 1024
+            variableUnit = unit
+        else:
+            break
+    return variable, variableUnit
+
+
+def printProgressBar(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 1048576.0):
+    percent = (copied / (fileSize * 1.0)) # multiplication by 1.0 needed for python 2
+    if percent > 1.0:
+        percent = 1.0
+    dataLeft = (fileSize - copied) #Bytes
+    timeLeftSeconds = (dataLeft / speedAverage) #Seconds
+    timeLeftHours = (timeLeftSeconds / 3600)
+    timeLeftSeconds = (timeLeftSeconds % 3600)
+    timeLeftMinutes = (timeLeftSeconds / 60)
+    timeLeftSeconds = (timeLeftSeconds % 60)
+
+    #padding = len(str(int(fileSize)))
+    copied, copiedUnit = getUnit(copied)
+    fileSize, fileSizeUnit = getUnit(fileSize)
+    speedCurrent, speedCurrentUnit = getUnit(speedCurrent)
+
+    symbolDone = '='
+    symbolLeft = '-'
+    sizeTotal = 20
+    sizeDone = int(percent * sizeTotal)
+
+    sizeLeft = sizeTotal - sizeDone
+    progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
+    sys.stdout.write('\r%3d%% %s [%3.1d%s/%3.1d%s]  [%6.2f%s/s] %3.1dh%2.2dm%2.2ds' % (percent*100, progressBar, copied, copiedUnit, fileSize, fileSizeUnit, speedCurrent, speedCurrentUnit, timeLeftHours, timeLeftMinutes, timeLeftSeconds))
+    sys.stdout.flush()
+    #time.sleep(0.05) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
+
+
+def handleProgressBarWithinLoop(vars, buffer, fileSize):
+    # timeNow = time.time()
+    # timeNowData += len(buffer)
+# #update Current Speed
+    # if timeNow >= (timeMark + time_step):
+        # timeDiff = timeNow - timeMark
+        # if timeDiff == 0:
+            # timeDiff = 0.1
+        # dataDiff = timeNowData - timeMarkData
+        # timeMark = timeNow
+        # timeMarkData = timeNowData
+        # speedCurrent = (dataDiff / timeDiff) #Bytes per second
+# #update Average Speed and print progress
+    # if timeNowData >= (dataMark + data_step):
+        # timeDiff = timeNow - timeStarted
+        # if timeDiff == 0:
+            # timeDiff = 0.1
+        # dataMark = timeNowData
+        # speedAverage = (timeNowData / timeDiff) #Bytes per second
+# #print progress
+        # printProgressBar(timeNowData, fileSize, speedCurrent, speedAverage)
+
+# it would be more readible to unpack a list, do calculations, and pack the list again (assign data)
+
+    vars['timeNow'] = time.time()
+    vars['timeNowData'] += len(buffer)
+#update Current Speed
+    if vars['timeNow'] >= (vars['timeMark'] + vars['time_step']):
+        vars['timeDiff'] = vars['timeNow'] - vars['timeMark']
+        if vars['timeDiff'] == 0:
+            vars['timeDiff'] = 0.1
+        vars['dataDiff'] = vars['timeNowData'] - vars['timeMarkData']
+        vars['timeMark'] = vars['timeNow']
+        vars['timeMarkData'] = vars['timeNowData']
+        vars['speedCurrent'] = (vars['dataDiff'] / vars['timeDiff']) #Bytes per second
+#update Average Speed and print progress
+    if vars['timeNowData'] >= (vars['dataMark'] + vars['data_step']):
+        vars['timeDiff'] = vars['timeNow'] - vars['timeStarted']
+        if vars['timeDiff'] == 0:
+            vars['timeDiff'] = 0.1
+        vars['dataMark'] = vars['timeNowData']
+        vars['speedAverage'] = (vars['timeNowData'] / vars['timeDiff']) #Bytes per second
+#print progress
+        printProgressBar(vars['timeNowData'], fileSize, vars['speedCurrent'], vars['speedAverage'])
+
+
+def initProgressBarVariables():
+    progressBarVars = {}
+
+    progressBarVars['timeStarted'] = time.time()
+    progressBarVars['data_step'] = 131072
+    progressBarVars['dataMark'] = 0
+
+    progressBarVars['time_step'] = 1.0
+    progressBarVars['timeMark'] = time.time()
+    progressBarVars['timeMarkData'] = 0.0
+    progressBarVars['timeNow'] = 0.0
+    progressBarVars['timeNowData'] = 0.0
+    progressBarVars['speedCurrent'] = 1048576.0
+    progressBarVars['speedAverage'] = 1048576.0
+
+    return progressBarVars
+
+#-------------------------------------------------------------------------------
+
+
+#===============================================================================
+# functions to calculate checksum
+#===============================================================================
+
+def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
+    fileNameNew = ""
+    if os.path.isfile(fileNameTemp):
+        try:
+            zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameTemp)).decode(sys.stdout.encoding).strip()
+            #print('\nzutil output:\n%s' % (zutilOutput))
+
+            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
+            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
+            checksumNew = fileMatcher.sub(r'\3', zutilOutput).upper()
+            fileNameNew = fileNamePrepend + '0x' + checksumNew + filenameAppend
+        except (Exception) as e:
+            print ("\nCalculate checksum ERROR: %s" % (e))
+    else:
+        print('\nERROR: Could not find new stratix image file to calculate checksum')
+    return fileNameNew
+
+
+def getChecksum(fileNameTemp, fileMatcher):
+    fileNameNew = ""
+    if os.path.isfile(fileNameTemp):
+        try:
+            f = open(fileNameTemp, 'rb')
+            checksum = 1
+            print("\ncalculating checksum...")
+            fileSize = getFileSize(fileNameTemp)
+
+            try:
+                progressBarVars = initProgressBarVariables()
+
+                while 1:
+                    buffer = f.read(128*1024)
+                    if not buffer:
+                        break
+                    checksum = zlib.adler32(buffer, checksum)
+
+                    handleProgressBarWithinLoop(progressBarVars, buffer, fileSize)
+                printProgressBar(progressBarVars['timeNowData'], fileSize, progressBarVars['speedCurrent'], progressBarVars['speedAverage'])
+                print()
+
+                f.close()
+            except (OSError, IOError) as e:
+                print("\nCalculate checksum ERROR: %s - %s" % (e.filename, e.strerror))
+            finally:
+                f.close()
+            checksum = checksum & 0xffffffff
+            #print("%d %s" % (checksum, (hex(checksum))))
+
+            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
+            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
+            checksumNew = '0x' + (hex(checksum)[2:].zfill(8)).upper()
+            fileNameNew = fileNamePrepend + checksumNew + fileNameAppend
+        except (Exception) as e:
+            print ("\nCalculate checksum ERROR: %s" % (e))
+    else:
+        print('\nERROR: Could not find new stratix image file to calculate checksum')
+    return fileNameNew
 
 #-------------------------------------------------------------------------------
 
@@ -2628,209 +2826,23 @@ def renameStratixFile(fileNameTemp, fileNameNew):
 
 
 #===============================================================================
-# functions to print progress bar
-#===============================================================================
-
-def getUnit(variable):
-    units = ['kB', 'MB', 'GB', 'TB']
-    variableUnit = ' B'
-    for unit in units:
-        if variable > 1000:
-            variable /= 1024
-            variableUnit = unit
-        else:
-            break
-    return variable, variableUnit
-
-
-def printProgress(copied, fileSize, speedCurrent = 1048576.0, speedAverage = 1048576.0):
-    percent = (copied / (fileSize * 1.0)) # multiplication by 1.0 needed for python 2
-    if percent > 1.0:
-        percent = 1.0
-    dataLeft = (fileSize - copied) #Bytes
-    timeLeftSeconds = (dataLeft / speedAverage) #Seconds
-    timeLeftHours = (timeLeftSeconds / 3600)
-    timeLeftSeconds = (timeLeftSeconds % 3600)
-    timeLeftMinutes = (timeLeftSeconds / 60)
-    timeLeftSeconds = (timeLeftSeconds % 60)
-
-    #padding = len(str(int(fileSize)))
-    copied, copiedUnit = getUnit(copied)
-    fileSize, fileSizeUnit = getUnit(fileSize)
-    speedCurrent, speedCurrentUnit = getUnit(speedCurrent)
-
-    symbolDone = '='
-    symbolLeft = '-'
-    sizeTotal = 20
-    sizeDone = int(percent * sizeTotal)
-
-    sizeLeft = sizeTotal - sizeDone
-    progressBar = '[' + sizeDone*symbolDone + sizeLeft*symbolLeft + ']'
-    sys.stdout.write('\r%3d%% %s [%3.1d%s/%3.1d%s]  [%6.2f%s/s] %3.1dh%2.2dm%2.2ds' % (percent*100, progressBar, copied, copiedUnit, fileSize, fileSizeUnit, speedCurrent, speedCurrentUnit, timeLeftHours, timeLeftMinutes, timeLeftSeconds))
-    sys.stdout.flush()
-    #time.sleep(0.05) #### DELETE AFTER DEVELOPMENT ##########################################################################################################
-
-#-------------------------------------------------------------------------------
-
-
-#===============================================================================
-# functions to calculate checksum
-#===============================================================================
-
-def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
-    fileNameNew = ""
-    if os.path.isfile(fileNameTemp):
-        try:
-            zutilOutput = subprocess.check_output('%s adler32 %s' % (path_to_zutil, fileNameTemp)).decode(sys.stdout.encoding).strip()
-            #print('\nzutil output:\n%s' % (zutilOutput))
-
-            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
-            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
-            checksumNew = fileMatcher.sub(r'\3', zutilOutput).upper()
-            fileNameNew = fileNamePrepend + '0x' + checksumNew + filenameAppend
-        except (Exception) as e:
-            print ("\nCalculate checksum ERROR: %s" % (e))
-    else:
-        print('\nERROR: Could not find new stratix image file to calculate checksum')
-    return fileNameNew
-
-
-def getChecksum(fileNameTemp, fileMatcher):
-    fileNameNew = ""
-    if os.path.isfile(fileNameTemp):
-        try:
-            f = open(fileNameTemp, 'rb')
-            checksum = 1
-            print("\n\ncalculating checksum")
-
-            fileSize = 1
-            try:
-                fileSize = os.stat(fileNameTemp).st_size
-            except (OSError, IOError, Exception) as e:
-                print("\nGetting file info ERROR: %s" % (e))
-            if fileSize <= 0:
-                fileSize = 1
-            timeStarted = time.time()
-            data_step = 131072
-            dataMark = 0
-            time_step = 1.0
-            timeMark = time.time()
-            timeMarkData = 0
-            timeNow = 0
-            timeNowData = 0
-            speedCurrent = 1048576.0
-            speedAverage = 1048576.0
-
-            try:
-                while 1:
-                    buffer = f.read(128*1024)
-                    if not buffer:
-                        break
-                    checksum = zlib.adler32(buffer, checksum)
-
-                    timeNow = time.time()
-                    timeNowData += len(buffer)
-                #update Current Speed
-                    if timeNow >= (timeMark + time_step):
-                        timeDiff = timeNow - timeMark
-                        if timeDiff == 0:
-                            timeDiff = 0.1
-                        dataDiff = timeNowData - timeMarkData
-                        timeMark = timeNow
-                        timeMarkData = timeNowData
-                        speedCurrent = (dataDiff / timeDiff) #Bytes per second
-                #update Average Speed and print progress
-                    if timeNowData >= (dataMark + data_step):
-                        timeDiff = timeNow - timeStarted
-                        if timeDiff == 0:
-                            timeDiff = 0.1
-                        dataMark = timeNowData
-                        speedAverage = (timeNowData / timeDiff) #Bytes per second
-                #print progress
-                        printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
-                printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
-                print()
-
-                f.close()
-            except (OSError, IOError) as e:
-                print("\nCalculate checksum ERROR: %s - %s" % (e.filename, e.strerror))
-            finally:
-                f.close()
-            checksum = checksum & 0xffffffff
-            #print("%d %s" % (checksum, (hex(checksum))))
-
-            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
-            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
-            checksumNew = '0x' + (hex(checksum)[2:].zfill(8)).upper()
-            fileNameNew = fileNamePrepend + checksumNew + fileNameAppend
-        except (Exception) as e:
-            print ("\nCalculate checksum ERROR: %s" % (e))
-    else:
-        print('\nERROR: Could not find new stratix image file to calculate checksum')
-    return fileNameNew
-
-#-------------------------------------------------------------------------------
-
-
-#===============================================================================
 # custom implementation of copyfileobj from shutil LIBRARY (enable displaying progress bar)
 #===============================================================================
 
 def copyfileobj(fsrc, fdst, src, length=16*1024):
-    fileSize = 1
-    try:
-        fileSize = os.stat(src).st_size
-    except (OSError, IOError, Exception) as e:
-        print("\nGetting file info ERROR: %s" % (e))
-    if fileSize <= 0:
-        fileSize = 1
-    timeStarted = time.time()
-    data_step = 131072
-    dataMark = 0
-    time_step = 1.0
-    timeMark = time.time()
-    timeMarkData = 0
-    timeNow = 0
-    timeNowData = 0
-    speedCurrent = 1048576.0
-    speedAverage = 1048576.0
+    fileSize = getFileSize(src)
 
-    # try:
+    progressBarVars = initProgressBarVariables()
+
     while 1:
         buffer = fsrc.read(length)
         if not buffer:
             break
         fdst.write(buffer)
 
-        timeNow = time.time()
-        timeNowData += len(buffer)
-    #update Current Speed
-        if timeNow >= (timeMark + time_step):
-            timeDiff = timeNow - timeMark
-            if timeDiff == 0:
-                timeDiff = 0.1
-            dataDiff = timeNowData - timeMarkData
-            timeMark = timeNow
-            timeMarkData = timeNowData
-            speedCurrent = (dataDiff / timeDiff) #Bytes per second
-    #update Average Speed and print progress
-        if timeNowData >= (dataMark + data_step):
-            timeDiff = timeNow - timeStarted
-            if timeDiff == 0:
-                timeDiff = 0.1
-            dataMark = timeNowData
-            speedAverage = (timeNowData / timeDiff) #Bytes per second
-    #print progress
-            printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
-    printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
+        handleProgressBarWithinLoop(progressBarVars, buffer, fileSize)
+    printProgressBar(progressBarVars['timeNowData'], fileSize, progressBarVars['speedCurrent'], progressBarVars['speedAverage'])
     print()
-
-    # except (OSError, IOError) as e:
-        # print("\nFile copy ERROR: %s - %s" % (e.filename, e.strerror))
-        # pressEnterToExit()
-    # finally:
-        # fdst.close()
-        # fsrc.close()
 
 #-------------------------------------------------------------------------------
 
@@ -2846,48 +2858,22 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
         response.raise_for_status()
         print("downloading file to %s" % os.path.dirname(pathToFileInRes))
         fileSize = int(response.headers['Content-length'])
+        if fileSize <= 0:
+            fileSize = 1
         try:
             f = open(pathToFileInRes, 'wb')
 
-            timeStarted = time.time()
-            data_step = 131072
-            dataMark = 0
-            time_step = 1.0
-            timeMark = time.time()
-            timeMarkData = 0
-            timeNow = 0
-            timeNowData = 0
-            speedCurrent = 1048576.0
-            speedAverage = 1048576.0
-
             try:
+                progressBarVars = initProgressBarVariables()
+
                 while 1:
                     buffer = response.raw.read(128)
                     if not buffer:
                         break
                     f.write(buffer)
 
-                    timeNow = time.time()
-                    timeNowData += len(buffer)
-                #update Current Speed
-                    if timeNow >= (timeMark + time_step):
-                        timeDiff = timeNow - timeMark
-                        if timeDiff == 0:
-                            timeDiff = 0.1
-                        dataDiff = timeNowData - timeMarkData
-                        timeMark = timeNow
-                        timeMarkData = timeNowData
-                        speedCurrent = (dataDiff / timeDiff) #Bytes per second
-                #update Average Speed and print progress
-                    if timeNowData >= (dataMark + data_step):
-                        timeDiff = timeNow - timeStarted
-                        if timeDiff == 0:
-                            timeDiff = 0.1
-                        dataMark = timeNowData
-                        speedAverage = (timeNowData / timeDiff) #Bytes per second
-                #print progress
-                        printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
-                printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
+                    handleProgressBarWithinLoop(progressBarVars, buffer, fileSize)
+                printProgressBar(progressBarVars['timeNowData'], fileSize, progressBarVars['speedCurrent'], progressBarVars['speedAverage'])
                 print()
 
                 f.close()
@@ -2902,7 +2888,6 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
     except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
         print("\nFile download ERROR: %s" % (e))
         pressEnterToExit()
-
 
 
 def getFileFromNetwork(pathToFile, pathToDirRes):
@@ -3026,22 +3011,25 @@ def createNewIniFile(pathToFile):
             f.write("\n\
 The script will search this file line by line looking for the last occurrence of Nahka or Stratix image files.\n\n\
 \
-You can find example in the list below:\n\n\
-i:\\some_user\\stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib\\\n\
+You can find example list below:\n\n\
 v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\\FRM-rfsw-image-install_20190231120000-multi.tar\n\
 v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka\n\
+i:\\some_user\\stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib\\\n\
 https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1578/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
 C:\\LocalDir\n\n\
 \
-1. if C:\\LocalDir contains Nahka file it will copy it and download Stratix file from artifactory\n\
-2. if C:\\LocalDir is empty it will copy newest Nahka file from v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka directory and download Stratix file from artifactory\n\
-3. but if C:\LocalDir contains Nahka and Stratix image it will copy both of them from C:\\LocalDir\n\
-4. Nahka file in stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib path will be ignored because it has no use\n\n\
+1. if C:\\LocalDir contains Nahka and Stratix file - it will copy both of them from C:\\LocalDir\n\
+2. if C:\\LocalDir contains only Nahka file - it will copy it and download Stratix file from web\n\
+3. if C:\\LocalDir is empty - it will copy newest Nahka file from v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka directory and download Stratix file from web\n\
+4. Nahka file in stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib path will always be ignored because it has no use\n\n\
 \
 You can keep a lot of helper links in this file but remember to put them above the ones desired for current build.\n\
-Script will always save the last found occurrence of Nahka or Stratix file location - so place your desired links at the very bottom!!!\n\n\
+Script will always pick the last found occurrence of Nahka or Stratix file location - so place your desired paths at the very bottom!!!\n\n\
 \
-. - if you will put only this dot at the end of this file you are explicitly telling this script to do the final search for Nahka and Stratix files in the current working directory.\n\n\
+. - dot means current working directory (works in both linux and windows).\n\n\
+\
+When you are running this script in linux console - please specify linux absolute or relative paths:\n\
+/var/fpwork2/some_user/nahka/tmp/deploy/images/nahka\n\n\
 \
 If you will delete this file - a new one will be created.\n\n\
 \
@@ -3148,12 +3136,18 @@ def main():
     # if len(sys.argv) == 2:
         # path_to_zutil = sys.argv[1]
 
+    #----------------------------
+    # initial settings of dir and file names used by this script (can be changed to any)
+    #----------------------------
     pathToFileIni = r'./stratix_nahka_swapper.ini'
-    pathToDirRes = r'./resources'
-    pathToDirTemp = r'./SRM_temp'
-    pathToDirTempArtifacts = r'./SRM_temp/artifacts'
+    pathToDirRes = r'./stratix_nahka_swapper_resources'
+    pathToDirTemp = r'./SRM_temp_00000000'
+    pathToDirTempArtifacts = os.path.join(pathToDirTemp, r'artifacts')
     fileNameStratixTemp = r'./SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
+    #----------------------------
+    # initial settings of regex patterns
+    #----------------------------
     urlMatcher = re.compile(r'(https://|http://|ftp://)')
     fileMatcher = re.compile(r'(.*)(0x)([a-fA-F0-9]{1,8})(.*)')
     fileMatcherNahka = re.compile(r'(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)')
@@ -3161,18 +3155,27 @@ def main():
     fileMatcherInstaller = re.compile(r'.*-installer.sh')
     pathMatcherStratix = re.compile(r'.*(stratix10-aaib)([\/\\]{1,2})(tmp-glibc)([\/\\]{1,2})(deploy)([\/\\]{1,2})(images)([\/\\]{1,2})(stratix10-aaib).*')
 
-    print("python version: %d.%d.%d" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+    printDetectedAndSupportedPythonVersion()
 
+    #----------------------------
+    # paths to latest files found
+    #----------------------------
     pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, pathMatcherStratix)
     pathToFileNahka = pathsToLatestFiles.get("pathToLatestFileNahka", "")
     pathToFileStratix = pathsToLatestFiles.get("pathToLatestFileStratix", "")
 
     printFunFact()
 
+    #----------------------------
+    # paths to files copied to local resources folder used by this script
+    #----------------------------
     pathToFileInResNahka = handleGettingFile(pathToFileNahka, pathToDirRes, 'selected Nahka file', urlMatcher)
     pathToFileInResStratix = handleGettingFile(pathToFileStratix, pathToDirRes, 'selected Stratix file', urlMatcher, fileMatcherStratix)
 
 
+    #----------------------------
+    # swapping nahka file in stratix file procedure
+    #----------------------------
     extractTarfile(pathToDirTemp, pathToFileInResStratix)
     replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInResNahka, fileMatcherNahka)
     setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInResNahka, fileMatcherInstaller, fileMatcherNahka)
@@ -3181,7 +3184,6 @@ def main():
 
     # fileNameStratixNew = getChecksumUsingZutil(fileNameStratixTemp, fileMatcher, path_to_zutil)
     fileNameStratixNew = getChecksum(fileNameStratixTemp, fileMatcher)
-
     renameStratixFile(fileNameStratixTemp, fileNameStratixNew)
 
 
