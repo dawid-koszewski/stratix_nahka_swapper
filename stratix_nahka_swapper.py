@@ -6,8 +6,8 @@
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
-# update:       2019.11.19
-# version:      01w
+# update:       2019.11.25
+# version:      01x
 #
 # written in Notepad++
 #
@@ -17,6 +17,7 @@
 
 ################# KNOWN ISSUES: #################
 # - no possibility to install requests module on wrlinb (module is needed to download Stratix from artifactory)
+# - when using in windows environment - executions permission in files are missing
 
 
 # please don't be afraid of this script
@@ -133,10 +134,17 @@ PYTHON_MINOR = sys.version_info[1]
 PYTHON_PATCH = sys.version_info[2]
 
 def printDetectedAndSupportedPythonVersion():
-    if ((PYTHON_MAJOR == 2 and PYTHON_MINOR >= 6) or (PYTHON_MAJOR == 3 and PYTHON_MINOR >= 4)):
-        print("detected python version: %d.%d.%d [SUPPORTED] (2.6, 2.7, >=3.4)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+    if((PYTHON_MAJOR == 2 and PYTHON_MINOR == 6 and PYTHON_PATCH >= 6)
+    or (PYTHON_MAJOR == 2 and PYTHON_MINOR == 7 and PYTHON_PATCH >= 4)
+    or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 3 and PYTHON_PATCH >= 5)
+    or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 4 and PYTHON_PATCH >= 5)
+    or (PYTHON_MAJOR == 3 and PYTHON_MINOR == 5 and PYTHON_PATCH >= 2)
+    or (PYTHON_MAJOR == 3 and PYTHON_MINOR >= 6)):
+        print("\ndetected python version: %d.%d.%d [SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+    elif (PYTHON_MAJOR >= 4):
+        print("\ndetected python version: %d.%d.%d [PROBABLY SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
     else:
-        print("detected python version: %d.%d.%d [NOT OFFICIALLY SUPPORTED] (2.6, 2.7, >=3.4)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
+        print("\ndetected python version: %d.%d.%d [NOT TESTED]\n(it is highly recommended to upgrade to 2.6.6, 2.7.4, 3.3.5, 3.8.0 or any newer)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
 
 #-------------------------------------------------------------------------------
 
@@ -396,10 +404,10 @@ PAX_NUMBER_FIELDS = {
 #---------------------------------------------------------
 # initialization
 #---------------------------------------------------------
-if os.name in ("nt", "ce"):
-    ENCODING = "utf-8"
-else:
-    ENCODING = sys.getfilesystemencoding()
+# if os.name in ("nt", "ce"):
+ENCODING = "utf-8"
+# else:
+    # ENCODING = sys.getfilesystemencoding()
 
 #---------------------------------------------------------
 # Some useful functions
@@ -2478,12 +2486,24 @@ def isTarfileGood(pathToFileInRes):
         return False
 
 
+def setPermissions755(tarinfo):
+    if not re.search(r'(.*.(tar|tar.gz|tar.bz2|tar.xz|tgz|tbz|txz|bin|run))', tarinfo.name):
+        tarinfo.mode |= 0o755
+    return tarinfo
+
+
 def extractTarfile(pathToDir, pathToFileInRes):
     print("\n\nextracting tarfile...")
     try:
-        tar = tarfile.open(pathToFileInRes, 'r')
+        tar = tarfile.open(pathToFileInRes, 'r:', format = GNU_FORMAT, encoding = "utf-8")
         try:
-            tar.extractall(path = pathToDir)
+
+            updatedMembers = []
+            for tarinfo in tar.getmembers():
+                tarinfo = setPermissions755(tarinfo)
+                updatedMembers.append(tarinfo)
+            tar.extractall(members = updatedMembers, path = pathToDir)
+
             tar.close()
         except (tarfile.TarError) as e:
             print("\nTarfile extraction ERROR: %s in:\n%s" % (e, pathToFileInRes))
@@ -2498,10 +2518,31 @@ def extractTarfile(pathToDir, pathToFileInRes):
 def createTarfile(pathToDir, fileName):
     print("\ncreating new tarfile...")
     try:
-        tar = tarfile.open(fileName, 'w')
+        tar = tarfile.open(fileName, 'w:', format = GNU_FORMAT, encoding = "utf-8")
         try:
-            for item in listDirectory(pathToDir):
-                tar.add(os.path.join(pathToDir, item), arcname = item)
+
+            if((PYTHON_MAJOR == 2 and PYTHON_MINOR >= 7)
+            or (PYTHON_MAJOR == 3 and PYTHON_MINOR >= 2)
+            or (PYTHON_MAJOR >= 3)):
+                for item in listDirectory(pathToDir):
+                    tar.add(os.path.join(pathToDir, item), arcname = item, filter = setPermissions755)
+            else:
+                for file in listDirsRecursively(pathToDir):
+                    pathToFile = os.path.join(pathToDir, file)
+                    tarinfo = tar.gettarinfo(pathToFile, arcname = file)
+                    tarinfo = setPermissions755(tarinfo)
+                    try:
+                        f = open(pathToFile, 'rb')
+                        try:
+                            tar.addfile(tarinfo, fileobj = f)
+                            f.close()
+                        except (OSError, IOError) as e:
+                            print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
+                        finally:
+                            f.close()
+                    except (Exception) as e:
+                        print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
+
             tar.close()
         except (tarfile.TarError) as e:
             print("\nTarfile creation ERROR: %s in:\n%s" % (e, fileName))
@@ -2575,6 +2616,24 @@ def listDirectory(pathToDir):
     return listDir
 
 
+def listDirs(pathBase, pathLocal, filesList):
+    pathToDir = os.path.join(pathBase, pathLocal)
+    for item in listDirectory(pathToDir):
+        pathToItem = os.path.join(pathToDir, item)
+        pathToItemLocal = os.path.join(pathLocal, item)
+        if os.path.isdir(pathToItem):
+            listDirs(pathBase, pathToItemLocal, filesList)
+        else:
+            filesList.append(pathToItemLocal)
+
+
+def listDirsRecursively(pathBase):
+    filesList = []
+    localPath = ''
+    listDirs(pathBase, localPath, filesList)
+    return filesList
+
+
 def getFileSize(pathToFile):
     fileSize = 1
     try:
@@ -2593,14 +2652,20 @@ def getFileSize(pathToFile):
 #===============================================================================
 
 def getUnit(variable):
-    units = ['kB', 'MB', 'GB', 'TB']
+    units = ['kB', 'MB', 'GB', 'TB'] #Decimal Prefixes - The SI standard http://wolfprojects.altervista.org/articles/binary-and-decimal-prefixes/
     variableUnit = ' B'
     for unit in units:
-        if variable > 1000:
-            variable /= 1024
+        if variable >= 1000:
+            variable /= 1000
             variableUnit = unit
         else:
             break
+    #which translates to:
+    # i = 0
+    # while variable >= 1000 and i < len(units):
+        # variable /= 1000
+        # variableUnit = units[i] #"damn I miss array[i++] style syntax" - Dawid Koszewski, AD 2019
+        # i += 1
     return variable, variableUnit
 
 
@@ -2733,7 +2798,7 @@ def getChecksum(fileNameTemp, fileMatcher):
                 progressBarVars = initProgressBarVariables()
 
                 while 1:
-                    buffer = f.read(128*1024)
+                    buffer = f.read(1024*1024) #default 64*1024 for linux
                     if not buffer:
                         break
                     checksum = zlib.adler32(buffer, checksum)
@@ -2743,17 +2808,17 @@ def getChecksum(fileNameTemp, fileMatcher):
                 print()
 
                 f.close()
+                checksum = checksum & 0xffffffff
+                fileNamePrepend = re.sub(fileMatcher, r'\1', fileNameTemp)
+                fileNameAppend = re.sub(fileMatcher, r'\4', fileNameTemp)
+                #checksumFormatted = '0x' + (hex(checksum)[2:].zfill(8)).upper() #in python 2.7.14 it appends letter L
+                checksumHex = "%x" % checksum
+                checksumFormatted = '0x' + ((checksumHex.zfill(8)).upper())
+                fileNameNew = fileNamePrepend + checksumFormatted + fileNameAppend
             except (OSError, IOError) as e:
                 print("\nCalculate checksum ERROR: %s - %s" % (e.filename, e.strerror))
             finally:
                 f.close()
-            checksum = checksum & 0xffffffff
-            #print("%d %s" % (checksum, (hex(checksum))))
-
-            fileNamePrepend = fileMatcher.sub(r'\1', fileNameTemp)
-            fileNameAppend = fileMatcher.sub(r'\4', fileNameTemp)
-            checksumNew = '0x' + (hex(checksum)[2:].zfill(8)).upper()
-            fileNameNew = fileNamePrepend + checksumNew + fileNameAppend
         except (Exception) as e:
             print ("\nCalculate checksum ERROR: %s" % (e))
     else:
@@ -2788,6 +2853,10 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
         if os.path.isfile(tempFilePath):
             if fileMatcherInstaller.search(tempFile):
                 try:
+                    # if PYTHON_MAJOR >= 3:
+                        # f = open(tempFilePath, 'r', newline = '')
+                    # else:
+                        # f = open(tempFilePath, 'rb')
                     f = open(tempFilePath, 'r')
                     try:
                         fileContent = f.read()
@@ -2800,17 +2869,20 @@ def setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInRes, fileMatcher
                 except (Exception) as e:
                     print("\nInstaller script reading ERROR: %s" % (e))
                 try:
-                    f = open(tempFilePath, 'w')
+                    if PYTHON_MAJOR >= 3:
+                        f = open(tempFilePath, 'w', newline = '')
+                    else:
+                        f = open(tempFilePath, 'wb')
                     try:
                         f.write(fileContent)
                         f.close()
+                        print("%s\t updated in:\t%s" % (fileName, tempFilePath))
                     except (OSError, IOError) as e:
                         print("\nInstaller script writing ERROR: %s - %s" % (e.filename, e.strerror))
                     finally:
                         f.close()
                 except (Exception) as e:
                     print("\nInstaller script writing ERROR: %s" % (e))
-                print("%s\t updated in:\t%s" % (fileName, tempFilePath))
 
 
 def renameStratixFile(fileNameTemp, fileNameNew):
@@ -2829,7 +2901,7 @@ def renameStratixFile(fileNameTemp, fileNameNew):
 # custom implementation of copyfileobj from shutil LIBRARY (enable displaying progress bar)
 #===============================================================================
 
-def copyfileobj(fsrc, fdst, src, length=16*1024):
+def copyfileobj(fsrc, fdst, src, length = 1024*1024): #default 64*1024 for linux
     fileSize = getFileSize(src)
 
     progressBarVars = initProgressBarVariables()
@@ -2867,7 +2939,7 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
                 progressBarVars = initProgressBarVariables()
 
                 while 1:
-                    buffer = response.raw.read(128)
+                    buffer = response.raw.read(1024) #default 128
                     if not buffer:
                         break
                     f.write(buffer)
@@ -3020,20 +3092,22 @@ C:\\LocalDir\n\n\
 \
 1. if C:\\LocalDir contains Nahka and Stratix file - it will copy both of them from C:\\LocalDir\n\
 2. if C:\\LocalDir contains only Nahka file - it will copy it and download Stratix file from web\n\
-3. if C:\\LocalDir is empty - it will copy newest Nahka file from v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka directory and download Stratix file from web\n\
-4. Nahka file in stratix10-aaib\\tmp-glibc\\deploy\\images\\stratix10-aaib path will always be ignored because it has no use\n\n\
+3. if C:\\LocalDir is empty - it will copy newest Nahka file from v:\\some_user\\nahka\\tmp\\deploy\\images\\nahka directory and download Stratix file from web\n\n\
 \
-You can keep a lot of helper links in this file but remember to put them above the ones desired for current build.\n\
+When you are running this script in linux console - please specify linux relative or absolute paths, for example:\n\
+../nahka/tmp/deploy/images/nahka\n\
+/var/fpwork2/some_user/stratix10-aaib/tmp-glibc/deploy/images/stratix10-aaib\n\n\
+\
+You can keep a lot of helper links in this ini file but remember to put them above the ones desired for current build.\n\
 Script will always pick the last found occurrence of Nahka or Stratix file location - so place your desired paths at the very bottom!!!\n\n\
+\
+If you will delete this ini file - a new one will be created.\n\n\
+\
+You can now put your links below (you can also delete this whole message - not recommended).\n\n\
 \
 . - dot means current working directory (works in both linux and windows).\n\n\
 \
-When you are running this script in linux console - please specify linux absolute or relative paths:\n\
-/var/fpwork2/some_user/nahka/tmp/deploy/images/nahka\n\n\
-\
-If you will delete this file - a new one will be created.\n\n\
-\
-You can now put your links below (you can also delete this whole message - not recommended).\n\n\n\
+.\n\
 ")
             f.close()
         except (OSError, IOError) as e:
@@ -3059,11 +3133,10 @@ def loadIniFileIntoList(pathToFile):
         except (Exception) as e:
             print("\nInifile loading ERROR: %s" % (e))
             return []
-    print("\nInitialization file not found...")
     createNewIniFile(pathToFile)
-    print("%s file has been created!!!\n" % (pathToFile))
-    print("In the first run this script will search for Nahka and Stratix files in the current working directory (%s)" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
-    print("Every next time it will search for Nahka and Stratix files in locations defined by you in the ini file (%s)" % (pathToFile))
+    print("\n%s file has been created!!!" % (pathToFile))
+    print("The script will always search for Nahka and Stratix files in locations defined by you in %s" % (pathToFile))
+    print("\nBy default it will search in the current working directory (%s)" % (os.path.dirname(os.path.realpath(sys.argv[0]))))
     pressEnterToContinue()
     return []
 
@@ -3097,7 +3170,7 @@ def getPathToLatestFileInDir(pathToDir, matcher, comparator):
     return filesList[-1] if filesList else ""
 
 
-def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, pathMatcherStratix):
+def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix):
     pathToFileNahka = ""
     pathToFileStratix = ""
     iniFileLinesList = loadIniFileIntoList(pathToFileIni)
@@ -3109,10 +3182,9 @@ def getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, p
             elif fileMatcherStratix.search(line):
                 pathToFileStratix = line
             elif os.path.isdir(line):
-                if not pathMatcherStratix.search(line):
-                    pathToLatestFileInDirNahka = getPathToLatestFileInDir(line, fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
-                    if pathToLatestFileInDirNahka:
-                        pathToFileNahka = pathToLatestFileInDirNahka
+                pathToLatestFileInDirNahka = getPathToLatestFileInDir(line, fileMatcherNahka, getDateFromNahkaFile(fileMatcherNahka))
+                if pathToLatestFileInDirNahka:
+                    pathToFileNahka = pathToLatestFileInDirNahka
                 pathToLatestFileInDirStratix = getPathToLatestFileInDir(line, fileMatcherStratix, getLastModificationTime)
                 if pathToLatestFileInDirStratix:
                     pathToFileStratix = pathToLatestFileInDirStratix
@@ -3139,11 +3211,11 @@ def main():
     #----------------------------
     # initial settings of dir and file names used by this script (can be changed to any)
     #----------------------------
-    pathToFileIni = r'./stratix_nahka_swapper.ini'
-    pathToDirRes = r'./stratix_nahka_swapper_resources'
-    pathToDirTemp = r'./SRM_temp_00000000'
+    pathToFileIni = r'stratix_nahka_swapper.ini'
+    pathToDirRes = r'stratix_nahka_swapper_resources'
+    pathToDirTemp = r'SRM_temp_00000000'
     pathToDirTempArtifacts = os.path.join(pathToDirTemp, r'artifacts')
-    fileNameStratixTemp = r'./SRM-rfsw-image-install_z-uber-0x00000000.tar'
+    fileNameStratixTemp = r'SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
     #----------------------------
     # initial settings of regex patterns
@@ -3153,14 +3225,13 @@ def main():
     fileMatcherNahka = re.compile(r'(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)')
     fileMatcherStratix = re.compile(r'.*(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar).*')
     fileMatcherInstaller = re.compile(r'.*-installer.sh')
-    pathMatcherStratix = re.compile(r'.*(stratix10-aaib)([\/\\]{1,2})(tmp-glibc)([\/\\]{1,2})(deploy)([\/\\]{1,2})(images)([\/\\]{1,2})(stratix10-aaib).*')
 
     printDetectedAndSupportedPythonVersion()
 
     #----------------------------
     # paths to latest files found
     #----------------------------
-    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix, pathMatcherStratix)
+    pathsToLatestFiles = getPathsToLatestFiles(pathToFileIni, fileMatcherNahka, fileMatcherStratix)
     pathToFileNahka = pathsToLatestFiles.get("pathToLatestFileNahka", "")
     pathToFileStratix = pathsToLatestFiles.get("pathToLatestFileStratix", "")
 
