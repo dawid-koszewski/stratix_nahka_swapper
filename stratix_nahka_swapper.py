@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 #-------------------------------------------------------------------------------
-# supports:     python 2.7, python 3
+# supports:     python 2.7, python 3.4 or newer
 #
 # author:       dawid.koszewski@nokia.com
 # date:         2019.10.30
@@ -14,15 +14,19 @@
 #-------------------------------------------------------------------------------
 
 
+import errno
 import os
 import random
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
 import time
-#import zlib
+
+#import zlib        #imported below in try except block
+#import requests    #imported below in try except block
 
 
 def pressEnterToExit():
@@ -57,42 +61,43 @@ def pressEnterToContinue():
 try:
     import zlib
 except (ImportError, Exception) as e:
-    print("%s" % e)
-    print("Script will now attempt to install required module: %s" % e.name)
+    print("\n%s\nYou can proceed but you will need to calculate checksum manually\n" % e)
     pressEnterToContinue()
-    try:
-        #subprocess.run('pip install zlib')
-        subprocess.call("pip install zlib")
-    except (Exception) as e:
-        print("%s" % e)
-import zlib
 
 
 try:
     import requests
 except (ImportError, Exception) as e:
-    print("%s" % e)
+    print("\n%s\n" % e)
     print("Script will now attempt to install required module: %s" % e.name)
     pressEnterToContinue()
     try:
-        #subprocess.run('pip install requests')
-        subprocess.call("pip install requests")
-    except (Exception) as e:
-        print("%s" % e)
-import requests
-
-
-#import urllib.request
-
-# try:
-    # import wget
-# except ImportError as e:
-    # print("%s" % e)
-    # print("Script will now attempt to install required module: %s" % e.name)
-    # pressEnterToContinue()
-    # subprocess.run('pip install wget')
-# import wget
-
+        print("if the following command will fail, script will try to access pypi.org through a proxy:")
+        print("pip install requests --retries 0 --timeout 3\n")
+        print("please wait for up to 15 seconds...")
+        subprocess.check_call("pip install requests --retries 0 --timeout 3")
+    except (subprocess.CalledProcessError, Exception) as e:
+        print("\n%s\n" % e)
+        try:
+            print("pip install requests --proxy defra1c-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3\n")
+            print("please wait for up to 15 seconds...")
+            subprocess.check_call("pip install requests --proxy defra1c-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
+        except (subprocess.CalledProcessError, Exception) as e:
+            print("\n%s\n" % e)
+            try:
+                print("pip install requests --proxy fihel1d-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3\n")
+                print("please wait for up to 15 seconds...")
+                subprocess.check_call("pip install requests --proxy fihel1d-proxy.emea.nsn-net.net:8080 --retries 0 --timeout 3")
+            except (subprocess.CalledProcessError, Exception) as e:
+                print("\n%s\n" % e)
+                pass
+    pressEnterToContinue()
+try:
+    import requests
+except (ImportError, Exception) as e:
+    print("\n%s\nCould not get requests module from pypi.org\n" % e)
+    print("If you need to get Stratix or Nahka file from the web you will need to manually download it to the local directory (and add path to it in the ini file)\n")
+    pressEnterToContinue()
 
 #-------------------------------------------------------------------------------
 
@@ -105,6 +110,7 @@ import requests
 #           rhettinger, merwok, loewis, tim-one, nnorwitz, doerwalter,         #
 #           ronaldoussoren, ned-deily, florentx, freddrake, csernazs,          #
 #           brettcannon, warsaw                                                #
+#                                                                              #
 # date:     24 Oct 2018                                                        #
 # link:     https://github.com/python/cpython/blob/2.7/Lib/shutil.py           #
 #                                                                              #
@@ -115,24 +121,6 @@ import requests
 XXX The functions here don't copy the resource fork or other metadata on Mac.
 
 """
-
-import stat
-import errno
-
-# class Error(EnvironmentError):
-    # pass
-
-# class SpecialFileError(EnvironmentError):
-    # """Raised when trying to do a kind of operation (e.g. copying) which is
-    # not supported on a special file (e.g. a named pipe)"""
-
-# class ExecError(EnvironmentError):
-    # """Raised when a command could not be executed"""
-
-# try:
-    # WindowsError
-# except NameError:
-    # WindowsError = None
 
 
 # def copyfileobj(fsrc, fdst, length=16*1024):
@@ -228,6 +216,7 @@ def copy2(src, dst):
 #           rhettinger, merwok, loewis, tim-one, nnorwitz, doerwalter,         #
 #           ronaldoussoren, ned-deily, florentx, freddrake, csernazs,          #
 #           brettcannon, warsaw                                                #
+#                                                                              #
 # date:     24 Oct 2018                                                        #
 # link:     https://github.com/python/cpython/blob/2.7/Lib/shutil.py           #
 #                                                                              #
@@ -348,7 +337,7 @@ def printFunFact():
     "98. Halley's Comet will pass over Earth again on 26th July 2061.", 
     "99. There is a planet half the radius of the Earth with a surface made up of diamonds.", 
     "100. Buzz Lightyear from Toy Story has actually been to outer space!"]
-    print("\nDid you know?\n%s\n" % fun_facts_cosmos[random.randint(0, 99)])
+    print("\nDid you know?\nFun Fact: #%s\n" % fun_facts_cosmos[random.randint(0, 99)])
 
 #-------------------------------------------------------------------------------
 
@@ -370,7 +359,6 @@ def printFunFact():
 #===============================================================================
 # utility functions
 #===============================================================================
-
 
 def printSelectedFile(pathToFile, name):
     nameLength = len(name)
@@ -507,7 +495,7 @@ def getChecksumUsingZutil(fileNameTemp, fileMatcher, path_to_zutil):
             checksumNew = fileMatcher.sub(r'\3', zutilOutput).upper()
             fileNameNew = fileNamePrepend + '0x' + checksumNew + filenameAppend
         except (Exception) as e:
-            print ("\nCalculate checksum ERROR: %s\n" % (e))
+            print ("\n\nCalculate checksum ERROR: %s\n" % (e))
     else:
         print('\nERROR: Could not find new stratix image file to calculate checksum\n')
     return fileNameNew
@@ -533,11 +521,11 @@ def getChecksum(fileNameTemp, fileMatcher):
             checksumNew = '0x' + (hex(checksum)[2:].zfill(8)).upper()
             fileNameNew = fileNamePrepend + checksumNew + fileNameAppend
         except (OSError, IOError) as e:
-            print ("\nCalculate checksum ERROR: %s - %s\n" % (e.filename, e.strerror))
+            print ("\n\nCalculate checksum ERROR: %s - %s\n" % (e.filename, e.strerror))
         except (Exception) as e:
-            print ("\nCalculate checksum ERROR: %s\n" % (e))
+            print ("\n\nCalculate checksum ERROR: %s\n" % (e))
     else:
-        print('\nERROR: Could not find new stratix image file to calculate checksum\n')
+        print('\n\nERROR: Could not find new stratix image file to calculate checksum\n')
     return fileNameNew
 
 #-------------------------------------------------------------------------------
@@ -589,7 +577,8 @@ def renameStratixFile(fileNameTemp, fileNameNew):
 
         print('modified: %s\n' % (getLastModificationTimeAsString(fileNameNew)))
     else:
-        print("\nSomething went wrong. New Stratix file not generated correctly\n")
+        print("\nSomething went wrong. New Stratix file not generated correctly...\n")
+        print("\nPlease manually check file: %s\n" % (fileNameTemp))
 
 #-------------------------------------------------------------------------------
 
@@ -733,8 +722,7 @@ def getFileFromArtifactory(pathToFile, pathToFileInRes):
                     printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
             printProgress(timeNowData, fileSize, speedCurrent, speedAverage)
             print()
-    #except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-    except (Exception) as e:
+    except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
         print("\nFile download ERROR: %s\n" % (e))
         pressEnterToExit()
     except (IOError) as e:
@@ -766,13 +754,14 @@ def isFileInResources(pathToFileInRes):
 
 def isFileAvailable(pathToFile, pathIsUrl):
     if pathIsUrl:
+        statusCode = 404
         try:
             response = requests.head(pathToFile)
             print('modified: %s (on server)\n' % (response.headers['last-modified']))
-            return response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in parentheses...
-        #except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
-        except (Exception) as e:
-            print("%s\n\nYou probably need authentication to download that file...\n" % (e))
+            statusCode = response.status_code == (200 or 300 or 301 or 302 or 303 or 307 or 308) # statement must be in parentheses...
+            return statusCode
+        except (requests.exceptions.HTTPError, requests.exceptions.RequestException, Exception) as e:
+            print("Request Header ERROR: %s\n[ status code: %s ]\nYou probably need authentication to download that file...\n" % (e, statusCode))
             return False
     else:
         if os.path.isfile(pathToFile):
