@@ -4,7 +4,7 @@
 # supports:     python 2.6, 2.7
 #               python 3.3 (or newer)
 #
-# author:       dawid.koszewski@nokia.com
+# author:       dawid.koszewski.01@gmail.com
 # date:         2019.10.30
 # update:       2019.12.16
 # version:      02f
