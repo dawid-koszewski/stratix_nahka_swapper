@@ -6,12 +6,10 @@
 #
 # author:       dawid.koszewski.01@gmail.com
 # date:         2019.10.30
-# update:       2019.12.16
-# version:      02f
+# update:       2021.05.13
+# version:      02f 5Gedition
 #
 # written in Notepad++
-#
-#
 #-------------------------------------------------------------------------------
 
 
@@ -140,7 +138,7 @@ def printDetectedAndSupportedPythonVersion():
         print("\ndetected python version: %d.%d.%d [PROBABLY SUPPORTED]\n(tested in 2.6.6, 2.7.4, 3.3.5, 3.8.0)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
     else:
         print("\ndetected python version: %d.%d.%d [NOT TESTED]\n(it is highly recommended to upgrade to 2.6.6, 2.7.4, 3.3.5, 3.8.0 or any newer)" % (PYTHON_MAJOR, PYTHON_MINOR, PYTHON_PATCH))
-    print("please do not hesitate to contact: dawid.koszewski@nokia.com\n")
+    print("please do not hesitate to contact: dawid.koszewski.01@gmail.com\n")
 
 printDetectedAndSupportedPythonVersion()
 
@@ -247,7 +245,7 @@ def copyfile(src, dst):
             if stat.S_ISFIFO(st.st_mode):
                 raise SpecialFileError("`%s` is a named pipe" % fn)
 
-    #modified by dawid.koszewski@nokia.com
+    #modified by dawid.koszewski.01@gmail.com
     try:
         fsrc = open(src, 'rb')
         try:
@@ -289,7 +287,7 @@ def copystat(src, dst):
         try:
             os.chflags(dst, st.st_flags)
         #except OSError, why:
-        except OSError as why: #modified by dawid.koszewski@nokia.com
+        except OSError as why: #modified by dawid.koszewski.01@gmail.com
             for err in 'EOPNOTSUPP', 'ENOTSUP':
                 if hasattr(errno, err) and why.errno == getattr(errno, err):
                     break
@@ -3387,7 +3385,7 @@ def createNewIniFile(pathToFile):
 \n\
 # 1b. Equal sign \"=\" is optional. Count of spaces \" \" before and after path also doesn't matter:\n\
 #     PATH_NAHKA ./nahka/tmp/deploy/images/nahka/FRM-rfsw-image-install_20190231120000-multi.tar\n\
-#     PATH_STRATIX                   C:\\LocalDir\\SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar       #you can also put comments after path (just put a hash sign \"#\" before comment)\n\
+#     PATH_STRATIX                   C:\\LocalDir\\rfsw-package-aafia-5mf5_0xFFFFFFFF.tar       #you can also put comments after path (just put a hash sign \"#\" before comment)\n\
 \n\
 # 1c. If a directory name is just some number (eg. \"1234\") - put \"./\" before its name (eg. \"./1234\") to differentiate it from artifactory URL build number:\n\
 #     PATH_NAHKA = LocalDir\n\
@@ -3412,7 +3410,7 @@ def createNewIniFile(pathToFile):
 #     PATH_STRATIX = 1234\n\
 \n\
 # 3b. You can also use just a direct URL to a file:\n\
-#     PATH_STRATIX = https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1234/C_Element/SE_RFM/SS_mMIMO_FDD/Target/SRM-rfsw-image-install_z-uber-0xFFFFFFFF.tar\n\
+#     PATH_STRATIX = https://artifactory-espoo1.int.net.nokia.com/artifactory/mnprf_brft-local/mMIMO_FDD/FB1813_Z/PROD_mMIMO_FDD_FB1813_Z_release/1234/C_Element/SE_RFM/SS_mMIMO_FDD/Target/rfsw-package-aafia-5mf5_0xFFFFFFFF.tar\n\
 \n\
 \n\
 \n\
@@ -3604,7 +3602,6 @@ def main():
     pathToDirResources      = r'stratix_nahka_swapper_resources'
     pathToDirTemp           = r'SRM_temp_00000000'
     pathToDirTempArtifacts  = os.path.join(pathToDirTemp, r'artifacts')
-    fileNameStratixTemp     = r'SRM-rfsw-image-install_z-uber-0x00000000.tar'
 
 
 #----------------------------
@@ -3613,9 +3610,9 @@ def main():
     urlMatcher              = re.compile(r'(https://|http://|ftp://)')
     serverMatcher           = re.compile(r'(wrlin)(.*)(emea.nsn-net.net)')
     imageMatcherNahka       = r'*FRM-rfsw-image-install_*'
-    imageMatcherStratix     = r'*SRM-rfsw-image-install_z-uber-0x*'
+    imageMatcherStratix     = r'*rfsw-package-aafia-5mf5.0x*'
     fileMatcherNahka        = re.compile(r'(.*)(FRM-rfsw-image-install_)([0-9]{14})(-multi.tar)(.*)')
-    fileMatcherStratix      = re.compile(r'(.*)(SRM-rfsw-image-install_z-uber-0x)([a-fA-F0-9]{8})(.tar)(.*)')
+    fileMatcherStratix      = re.compile(r'(.*)(rfsw-package-aafia-5mf5.0x)([a-fA-F0-9]{8})(.tar)(.*)')
     fileMatcherChecksum     = re.compile(r'(.*0x)([a-fA-F0-9]{1,8})(.*)')
     fileMatcherInstaller    = re.compile(r'.*-installer.sh')
 
@@ -3651,6 +3648,7 @@ def main():
     extractTarfile(pathToDirTemp, pathToFileInResourcesStratix)
     replaceFileInArtifacts(pathToDirTempArtifacts, pathToFileInResourcesNahka, fileMatcherNahka)
     setNewFileNameInInstallerScripts(pathToDirTemp, pathToFileInResourcesNahka, fileMatcherInstaller, fileMatcherNahka)
+    fileNameStratixTemp = fileMatcherStratix.sub(r'\2FFFFFFFF\4', pathToFileInResourcesStratix)
     createTarfile(pathToDirTemp, fileNameStratixTemp)
     removeDir(pathToDirTemp)
 
